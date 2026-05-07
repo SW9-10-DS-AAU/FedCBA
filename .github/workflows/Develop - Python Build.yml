@@ -1,10 +1,10 @@
-name: Dev - Python Build, Lint & Test
+name: Develop - Python Build
 
 on:
   push:
-    branches: [develop]
+    branches: [test-develop]
   pull_request:
-    branches: [develop]
+    branches: [test-develop]
 
 jobs:
   build-dev:
@@ -27,15 +27,6 @@ jobs:
             **/pdm.lock
             **/uv.lock
 
-      # # 3. Cache pip
-      # - name: Cache pip
-      #   uses: actions/cache@v3
-      #   with:
-      #     path: ~/.cache/pip
-      #     key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-      #     restore-keys: |
-      #       ${{ runner.os }}-pip-
-
       # 3. Install dependencies etc
       - name: Install dependencies
         run: |
@@ -45,33 +36,13 @@ jobs:
           pip install -e ".[ci]"
           pip install 'black[jupyter]'
 
-      # 4. fix formatting with black
-      # - name: Check code formatting with black
-      #   run: |
-      #     pip install black
-      #     black --line-length 120 .
-        # run: |
-        #   pip install black
-        #   black --line-length 120 .
-
-      ## 5. Lint code with flake8
-      #- name: Lint with flake8
-      #  run: |
-      #    pip install flake8
-      #    flake8 --max-line-length=120 .
-
-      # 6. Build package if applicable
+      # 4. Build package if applicable
       - name: Build package
         run: python -m build
         # run: |
         #   if [ -f setup.py ]; then python setup.py build; fi
         #   if [ -f pyproject.toml ]; then python -m build; fi
 
-      # 7. Import check
+      # 5. Import check
       - name: Import check
         run: python -c "import sys; import os; print('Python OK')"
-
-      # 9. Run tests if folder exists
-      - name: Run tests
-        run: |
-          if [ -f pytest.ini ] || [ -d tests ]; then pip install pytest && pytest; fi

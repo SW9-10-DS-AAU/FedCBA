@@ -1,8 +1,8 @@
-name: Main - Python Build, Lint & Test
+name: Main - Python Build & Test
 
 on:
   pull_request:
-    branches: [main]
+    branches: [test-main]
 
 jobs:
   enforce-source-branch:
@@ -12,7 +12,7 @@ jobs:
     steps:
       - id: check
         run: |
-          if [ "${{ github.head_ref }}" != "develop" ]; then
+          if [ "${{ github.head_ref }}" != "test-develop" ]; then
             echo "PR must come from 'develop' branch!"
             exit 1
           fi
@@ -39,21 +39,7 @@ jobs:
             **/pdm.lock
             **/uv.lock
 
-      # 3. Cache pip
-      # - name: Cache pip
-      #   uses: actions/cache@v3
-      #   with:
-      #     path: ~/.cache/pip
-      #     key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-      #     restore-keys: |
-      #       ${{ runner.os }}-pip-
-
-      # 4. Install dependencies
-      # - name: Install dependencies
-      #   run: |
-      #     python -m pip install --upgrade pip
-      #     if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-
+      # 3. Install dependencies etc
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -62,32 +48,18 @@ jobs:
           pip install -e ".[ci]"
           pip install 'black[jupyter]'
 
-      # 5. fix formatting with black
-      # - name: Check code formatting with black
-      #   run: |
-      #     pip install black
-      #     black --line-length 120 .
-
-      ## 6. Lint code with flake8
-      #- name: Lint with flake8
-      #  run: |
-      #    pip install flake8
-      #    flake8 --max-line-length=120 .
-
-      # 7. Build package if applicable
-      # - name: Build package
-      #   run: |
-      #     if [ -f setup.py ]; then python setup.py build; fi
-      #     if [ -f pyproject.toml ]; then python -m build; fi
-
+      # 4. Build package if applicable
       - name: Build package
         run: python -m build
+        # run: |
+        #   if [ -f setup.py ]; then python setup.py build; fi
+        #   if [ -f pyproject.toml ]; then python -m build; fi
 
-      # 8. Import check
+      # 5. Import check
       - name: Import check
         run: python -c "import sys; import os; print('Python OK')"
 
-      # 9. Run tests if folder exists
+      # 6. Run tests if folder exists
       - name: Run tests
         run: |
           if [ -f pytest.ini ] || [ -d tests ]; then pip install pytest && pytest; fi
