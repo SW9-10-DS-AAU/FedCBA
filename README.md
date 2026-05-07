@@ -2,7 +2,7 @@
 
 Master's Thesis by:
 - Caspar Emil Jensen, Lucas Lybek Højlund Pedersen and Rune Iversen Eberhardt
-- Fall spring 2026 - Aalborg University
+- Spring semester 2026 - Aalborg University
 - Based on previous work from pre-specialisation thesis: https://github.com/SW9-10-DS-AAU/IHF-DFL
 
 ```
