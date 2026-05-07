@@ -32,7 +32,7 @@ DATASETSLOW = "cifar.10"
 DATASETFAST = "mnist"
 RESULTDATAFOLDER = REPO_ROOT / "data" / "runs" / "sample"
 
-DATASET = DATASETFAST
+DATASET = DATASETSLOW
 
 OUTPUTHEADERS = [
     "round",
