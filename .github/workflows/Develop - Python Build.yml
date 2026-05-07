@@ -8,7 +8,7 @@ on:
 
 jobs:
   build-dev:
-    if: github.base_ref != 'test-main'
+    if: github.base_ref != 'main'
     runs-on: ubuntu-latest
 
     steps:
