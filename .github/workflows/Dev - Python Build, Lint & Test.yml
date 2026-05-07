@@ -2,9 +2,9 @@ name: Dev - Python Build, Lint & Test
 
 on:
   push:
-    branches: [develop]
+    branches: [test-develop]
   pull_request:
-    branches: [develop]
+    branches: [test-develop]
 
 jobs:
   build-dev:

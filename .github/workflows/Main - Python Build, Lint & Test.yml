@@ -2,7 +2,7 @@ name: Main - Python Build, Lint & Test
 
 on:
   pull_request:
-    branches: [main]
+    branches: [test-main]
 
 jobs:
   enforce-source-branch:
