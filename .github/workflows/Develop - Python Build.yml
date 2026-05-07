@@ -1,4 +1,4 @@
-name: Dev - Python Build, Lint & Test
+name: Develop - Python Build
 
 on:
   push:
