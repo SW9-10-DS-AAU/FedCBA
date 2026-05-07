@@ -1,11 +1,16 @@
-# OpenFL: Decentralized Federated Learning on Public Blockchain Systems
+# FedCBA: Contribution-based Aggregation in Decentralized Federated Learning
+
+Master's Thesis by:
+- Caspar Emil Jensen, Lucas Lybek Højlund Pedersen and Rune Iversen Eberhardt
+- Spring semester 2026 - Aalborg University
+- Based on previous work from pre-specialisation thesis: https://github.com/SW9-10-DS-AAU/IHF-DFL
 
 ```
- ___ _   _ ____       ____  _____ _     
-|_ _| | | |  _ \     |  _ \|  ___| |    
- | || |_| | |_) |____| | | | |_  | |    
- | ||  _  |  __/_____| |_| |  _| | |___ 
-|___|_| |_|_|        |____/|_|   |_____|                      
+ _____   _____   ____     ____   ____       _    
+|  ___| | ____| |  _ \   / ___| | __ )     / \   
+| |_    |  _|   | | | | | |     |  _ \    / _ \  
+|  _|   | |___  | |_| | | |___  | |_) |  / ___ \ 
+|_|     |_____| |____/   \____| |____/  /_/   \_\                    
 ```
 
 # Getting started
@@ -27,6 +32,10 @@ PRIVATE_KEYS="<Private keys from your accounts colon separated (for non-locally 
 ```
 
 ## 3. Requirements
+Install Git LFS (required for dataset files):
+- `git lfs install`
+- `git lfs pull`
+
 - Only tested with Python3.10
 Create a virtual environment and activate it.
 - Run ``python3 -m venv .venv``
