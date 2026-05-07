@@ -2,9 +2,9 @@ name: Develop - Python Build
 
 on:
   push:
-    branches: [test-develop]
+    branches: [develop]
   pull_request:
-    branches: [test-develop]
+    branches: [develop]
 
 jobs:
   build-dev:
