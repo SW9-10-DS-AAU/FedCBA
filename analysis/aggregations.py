@@ -58,6 +58,7 @@ def agg_global_accuracy_loss_by_round(merged_global: pd.DataFrame) -> pd.DataFra
             accuracy_std= ("accuracy", "std"),
             loss_mean=    ("loss",     "mean"),
             loss_std=     ("loss",     "std"),
+            n=            ("accuracy", "count"),
         )
         .reset_index()
     )
@@ -148,6 +149,7 @@ def agg_grs_by_role(merged_users: pd.DataFrame, metadata: pd.DataFrame) -> pd.Da
         .agg(
             grs_mean=("grs", "mean"),
             grs_std= ("grs", "std"),
+            n=       ("grs", "count"),
         )
         .reset_index()
     )
@@ -192,7 +194,7 @@ def agg_grs_by_role_relative(merged_users: pd.DataFrame, metadata: pd.DataFrame)
     )
     return (
         per_experiment.groupby(["role", "relative_round"])
-        .agg(grs_mean=("grs", "mean"), grs_std=("grs", "std"))
+        .agg(grs_mean=("grs", "mean"), grs_std=("grs", "std"), n=("grs", "count"))
         .reset_index()
     )
 
@@ -247,6 +249,7 @@ def global_acc_by_aggregation_strategy(acc_over_agg: pd.DataFrame, metadata: pd.
         .agg(
             accuracy_mean=("accuracy", "mean"),
             accuracy_std= ("accuracy", "std"),
+            n=            ("accuracy", "count"),
         )
         .reset_index()
     )
@@ -277,6 +280,7 @@ def global_loss_by_aggregation_strategy(loss_over_agg: pd.DataFrame, metadata: p
         .agg(
             loss_mean=("loss", "mean"),
             loss_std= ("loss", "std"),
+            n=        ("loss", "count"),
         )
         .reset_index()
     )
@@ -325,6 +329,7 @@ def agg_contribution_score_by_role(merged_users: pd.DataFrame, merged_contributi
         .agg(
             score_mean=("contribution_score", "mean"),
             score_std= ("contribution_score", "std"),
+            n=         ("contribution_score", "count"),
         )
         .reset_index()
     )
@@ -386,7 +391,7 @@ def agg_contribution_score_by_role_relative(
     )
     return (
         per_experiment.groupby(["role", "relative_round"])
-        .agg(score_mean=("contribution_score", "mean"), score_std=("contribution_score", "std"))
+        .agg(score_mean=("contribution_score", "mean"), score_std=("contribution_score", "std"), n=("contribution_score", "count"))
         .reset_index()
     )
 
@@ -415,6 +420,7 @@ def agg_gas_used_by_tx_type(merged_receipts: pd.DataFrame, metadata: pd.DataFram
         .agg(
             gas_mean=("gas", "mean"),
             gas_std= ("gas", "std"),
+            n=       ("gas", "count"),
         )
         .reset_index()
     )
@@ -502,6 +508,7 @@ def agg_merge_weights_by_behavior(users: pd.DataFrame) -> pd.DataFrame:
         .agg(
             weight_mean=("merge_weight", "mean"),
             weight_std= ("merge_weight", "std"),
+            n=          ("merge_weight", "count"),
         )
         .reset_index()
     )
