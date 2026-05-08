@@ -62,7 +62,7 @@ class FLChallenge(ConnectionHelper):
         print("Contract address:", self.model.address)
         print("Contract ABI functions:", [f["name"] for f in self.model.abi if f["type"] == "function"])
 
-        
+
     def register_all_users(self): # pragma: no cover
         """
         Register all participants in the federated learning model
@@ -78,7 +78,7 @@ class FLChallenge(ConnectionHelper):
                 txHash = self.model.functions.register().transact(tx)
             else:
                 # Non-fork: build and sign a raw transaction manually
-                nonce = self.w3.eth.get_transaction_count(acc.address) 
+                nonce = self.w3.eth.get_transaction_count(acc.address)
                 reg = super().build_non_fork_tx(acc.address, nonce, value=acc.collateral)
                 reg = self.model.functions.register().build_transaction(reg)
                 signed = self.w3.eth.account.sign_transaction(reg, private_key=acc.privateKey)
@@ -86,25 +86,25 @@ class FLChallenge(ConnectionHelper):
             txs.append(txHash)
             bal = self.w3.eth.get_balance(self.w3.eth.default_account)
             acc.isRegistered = True
-            print("{:<17} {} | {} | {:>25,.0f} WEI".format("Account registered:", 
-                                                           acc.address[0:16] + "...", 
-                                                           txHash.hex()[0:6] + "...", 
+            print("{:<17} {} | {} | {:>25,.0f} WEI".format("Account registered:",
+                                                           acc.address[0:16] + "...",
+                                                           txHash.hex()[0:6] + "...",
                                                            acc.collateral
                                                            ))
-        
+
         l = len(txs)
         for i, txHash in enumerate(txs):
             printer.print_bar(i, l)
             receipt = self.w3.eth.wait_for_transaction_receipt(txHash,
-                                                            timeout=600, 
+                                                            timeout=600,
                                                             poll_latency=1)
-            
+
             self.gas_register.append(receipt["gasUsed"])
             self.txHashes.append(("register",receipt["transactionHash"].hex(), receipt["gasUsed"]))
             logging.log_receipt(self, receipt, "register", round=0)
         printer._print("-----------------------------------------------------------------------------------", "\n")
-        
-    
+
+
     def get_hashed_weights_of(self, user): # pragma: no cover
         return self.model.functions.weightsOf(user.address,self.pytorch_model.round-1).call({"to": self.modelAddress})
 
@@ -113,6 +113,8 @@ class FLChallenge(ConnectionHelper):
         user = self.model.functions.getUser(user_addr).call()
         return user[2]
 
+    def get_prior_grs_of_user(self, user_addr, steps_back: int): # pragma: no cover
+        return self.model.functions.getUserPriorGRS(user_addr, steps_back).call()
 
     def get_round_reputation_of_user(self, user): # pragma: no cover
         user_struct = self.model.functions.users(user).call()
@@ -170,8 +172,8 @@ class FLChallenge(ConnectionHelper):
         txs = []
         for acc in self.pytorch_model.participants:
             if acc.attitude == "inactive":
-                print("{:<17}   {} | {} | {:>25,.0f} WEI".format("Account inactive:", 
-                                                                         acc.address[0:16] + "...", 
+                print("{:<17}   {} | {} | {:>25,.0f} WEI".format("Account inactive:",
+                                                                         acc.address[0:16] + "...",
                                                                          "   ...   ",
                                                                          self.get_global_reputation_of_user(acc.address)
                                                                          ))
@@ -180,8 +182,8 @@ class FLChallenge(ConnectionHelper):
                 tx = super().build_tx(acc.address, self.modelAddress, 0)
                 txHash = self.model.functions.provideHashedWeights(acc.hashedModel, acc.secret).transact(tx)
 
-            else:          
-                nonce = self.w3.eth.get_transaction_count(acc.address) 
+            else:
+                nonce = self.w3.eth.get_transaction_count(acc.address)
                 hw = super().build_non_fork_tx(acc.address, nonce)
                 hw =  self.model.functions.provideHashedWeights(acc.hashedModel, acc.secret).build_transaction(hw)
                 signed = self.w3.eth.account.sign_transaction(hw, private_key=acc.privateKey)
@@ -196,15 +198,15 @@ class FLChallenge(ConnectionHelper):
         for i, txHash in enumerate(txs):
             printer.print_bar(i, l)
             receipt = self.w3.eth.wait_for_transaction_receipt(txHash,
-                                                            timeout=600, 
+                                                            timeout=600,
                                                             poll_latency=1)
-            
+
             self.gas_weights.append(receipt["gasUsed"])
             self.txHashes.append(("weights", receipt["transactionHash"].hex(), receipt["gasUsed"]))
             logging.log_receipt(self, receipt, "weights")
         # printer._print("-----------------------------------------------------------------------------------\n")
 
-             
+
     def give_feedback(self, feedbackGiver, target, score): # pragma: no cover
         """
         Send a feedback transaction from feedbackGiver to target with given score:
@@ -222,7 +224,7 @@ class FLChallenge(ConnectionHelper):
         try:
             if self.fork:
                 txHash = self.model.functions.feedback(target.address, score).transact(tx)
-            else:          
+            else:
                 nonce = self.w3.eth.get_transaction_count(feedbackGiver.address)
                 fe = super().build_non_fork_tx(feedbackGiver.address, nonce)
                 fe =  self.model.functions.feedback(target.address, score).build_transaction(fe)
@@ -237,9 +239,9 @@ class FLChallenge(ConnectionHelper):
             else:
                 print(rb("Encountered error at feedback function"))
                 raise e
-                
+
         assert(txHash != None)
-        
+
         if score == 1:
             target.roundRep += 1 * self.get_global_reputation_of_user(feedbackGiver.address)
             rep = "Positive"
@@ -256,16 +258,16 @@ class FLChallenge(ConnectionHelper):
             pre = "-"
             col = "red"
         fb = "Feedback:".format(rep)
-        
+
         print(colored("{:<11} {}   |" \
-            " {}  | {}{:>25,.0f} WEI".format(fb, 
-                                    feedbackGiver.address[0:7]+"... --> "+target.address[0:7]+"...", 
+            " {}  | {}{:>25,.0f} WEI".format(fb,
+                                    feedbackGiver.address[0:7]+"... --> "+target.address[0:7]+"...",
                                     txHash.hex()[0:6] + "...",
                                     pre,
                                     self.get_global_reputation_of_user(feedbackGiver.address)), col))
         return txHash
 
-    
+
     def return_stats(self): # pragma: no cover
         print("\n==================================================================================\n")
         print("\n{:<8}{:^32}  {:^32}".format(f"ROUND {self.pytorch_model.round}","GLOBAL REPUTATION", "ROUND REPUTATION"))
@@ -274,8 +276,8 @@ class FLChallenge(ConnectionHelper):
             rs = self.get_round_reputation_of_user(acc.address)
             print("{}..: {:>27,.0f}  {:>27,.0f} WEI".format(acc.address[0:7],gs,rs))
         print("\n==================================================================================\n")
-    
-            
+
+
     def feedback_round(self, fbm): # pragma: no cover
         txs = []
         for user in self.pytorch_model.participants:
@@ -287,16 +289,16 @@ class FLChallenge(ConnectionHelper):
                     continue
                 txHash = self.giveFeedback(user, self.pytorch_model.participants[ix], int(vote))
                 txs.append(txHash)
-           
+
         l = len(txs)
         for i, txHash in enumerate(txs):
             if txHash == None:
                 continue
             printer.print_bar(i, l)
             receipt = self.w3.eth.wait_for_transaction_receipt(txHash,
-                                                            timeout=600, 
+                                                            timeout=600,
                                                             poll_latency=1)
-            
+
             self.gas_feedback.append(receipt["gasUsed"])
             self.txHashes.append(("feedback", receipt["transactionHash"].hex(), receipt["gasUsed"]))
             logging.log_receipt(self, receipt, "feedback")
@@ -534,8 +536,8 @@ class FLChallenge(ConnectionHelper):
         txs = []
         for acc in self.pytorch_model.participants:
             if acc.attitude == "inactive":
-                print("{:<17}   {} | {} | {:>25,.0f} WEI".format("Account inactive:", 
-                                                                         acc.address[0:16] + "...", 
+                print("{:<17}   {} | {} | {:>25,.0f} WEI".format("Account inactive:",
+                                                                         acc.address[0:16] + "...",
                                                                          "   ...   ",
                                                                          self.get_global_reputation_of_user(acc.address)
                                                                          ))
@@ -549,8 +551,8 @@ class FLChallenge(ConnectionHelper):
                 tx = super().build_tx(acc.address, self.modelAddress, 0)
                 txHash = self.model.functions.registerSlot(reservation).transact(tx)
             else:
-                w3 = ConnectionHelper.get_w3()          
-                nonce = w3.eth.get_transaction_count(acc.address) 
+                w3 = ConnectionHelper.get_w3()
+                nonce = w3.eth.get_transaction_count(acc.address)
                 sl = super().build_non_fork_tx(acc.address, nonce)
                 sl =  self.model.functions.registerSlot(reservation).build_transaction(sl)
                 signed = w3.eth.account.sign_transaction(sl, private_key=acc.privateKey)
@@ -565,36 +567,36 @@ class FLChallenge(ConnectionHelper):
         for i, txHash in enumerate(txs):
             printer.print_bar(i, l)
             receipt = self.w3.eth.wait_for_transaction_receipt(txHash,
-                                                            timeout=600, 
+                                                            timeout=600,
                                                             poll_latency=1)
-            
+
             self.gas_slot.append(receipt["gasUsed"])
             self.txHashes.append(("slot", receipt["transactionHash"].hex(), receipt["gasUsed"]))
             logging.log_receipt(self, receipt, "slot")
         # printer._print("-----------------------------------------------------------------------------------\n")
-        return 
-    
+        return
+
 
     def exit_system(self): # pragma: no cover
         self.pytorch_model.close_pool()
         print(b(f"Terminating Model..."))
-       
+
         txs = []
         for acc in self.pytorch_model.participants:
-            
+
             if self.fork:
                 tx = super().build_tx(acc.address, self.modelAddress, 0)
                 txHash = self.model.functions.exitModel().transact(tx)
             else:
-                w3 = ConnectionHelper.get_w3()          
-                nonce = w3.eth.get_transaction_count(acc.address) 
+                w3 = ConnectionHelper.get_w3()
+                nonce = w3.eth.get_transaction_count(acc.address)
                 ex = super().build_non_fork_tx(acc.address, nonce)
                 ex =  self.model.functions.exitModel().build_transaction(ex)
                 signed = w3.eth.account.sign_transaction(ex, private_key=acc.privateKey)
                 txHash = w3.eth.send_raw_transaction(signed.raw_transaction)
             txs.append(txHash)
-            print("{:<17}   {} | {} | {:>27,.0f} WEI".format("Account exited:  ", 
-                                                             acc.address[0:16] + "...", 
+            print("{:<17}   {} | {} | {:>27,.0f} WEI".format("Account exited:  ",
+                                                             acc.address[0:16] + "...",
                                                              txHash.hex()[0:6] + "...",
                                                              self.w3.eth.get_balance(acc.address)
                                                              ))
@@ -602,13 +604,59 @@ class FLChallenge(ConnectionHelper):
         for i, txHash in enumerate(txs):
             printer.print_bar(i, l)
             receipt = self.w3.eth.wait_for_transaction_receipt(txHash,
-                                                            timeout=600, 
+                                                            timeout=600,
                                                             poll_latency=1)
-            
+
             self.gas_exit.append(receipt["gasUsed"])
             self.txHashes.append(("exit", receipt["transactionHash"].hex(), receipt["gasUsed"]))
             logging.log_receipt(self, receipt, "exit")
         printer._print("-----------------------------------------------------------------------------------\n")
+
+    def exit_user(self, user):
+        if self.fork:
+            tx = super().build_tx(user.address, self.modelAddress, 0)
+            txHash = self.model.functions.exitModel().transact(tx)
+        else:
+            w3 = ConnectionHelper.get_w3()
+            nonce = w3.eth.get_transaction_count(user.address)
+            ex = super().build_non_fork_tx(user.address, nonce)
+            ex = self.model.functions.exitModel().build_transaction(ex)
+            signed = w3.eth.account.sign_transaction(ex, private_key=user.privateKey)
+            txHash = w3.eth.send_raw_transaction(signed.raw_transaction)
+        print("{:<17}   {} | {} | {:>27,.0f} WEI".format("User left:       ",
+                                                         user.address[0:16] + "...",
+                                                         txHash.hex()[0:6] + "...",
+                                                         self.w3.eth.get_balance(user.address)
+                                                         ))
+        receipt = self.w3.eth.wait_for_transaction_receipt(txHash, timeout=600, poll_latency=1)
+        self.gas_exit.append(receipt["gasUsed"])
+        self.txHashes.append(("exit", receipt["transactionHash"].hex(), receipt["gasUsed"]))
+        logging.log_receipt(self, receipt, "exit")
+
+    def check_and_exit_losing_users(self): # pragma: no cover
+        no_bad_users_remaining = all(
+            u.attitude not in ("bad", "freerider")
+            for u in self.pytorch_model.participants
+        )
+        if not no_bad_users_remaining:
+            return
+
+        current_round = self.model.functions.round().call()
+        if current_round < 3:
+            return
+
+        to_exit = []
+        for u in self.pytorch_model.participants:
+            grs_current       = self.get_prior_grs_of_user(u.address, 1)
+            grs_one_round_ago = self.get_prior_grs_of_user(u.address, 2)
+            grs_two_rounds_ago = self.get_prior_grs_of_user(u.address, 3)
+            if grs_current < grs_one_round_ago and grs_one_round_ago < grs_two_rounds_ago:
+                to_exit.append(u)
+
+        for user in to_exit:
+            print(b(f"User {user.address[0:16]}... lost GRS two rounds in a row — leaving system."))
+            self.exit_user(user)
+            self.pytorch_model.participants.remove(user)
 
 
     def get_events(self, w3, contract, receipt, event_names):
@@ -791,7 +839,7 @@ class FLChallenge(ConnectionHelper):
             event_names=["Reward"]
         )
         reward_events = events["Reward"]
-        
+
         result = []
         for ev in reward_events:
             args = ev["args"]
@@ -825,7 +873,7 @@ class FLChallenge(ConnectionHelper):
 
         print(self.modelAddress)
         self.register_all_users()
-        
+
         grs = [(user.address, user._globalrep[-1]) for user in self.pytorch_model.participants + self.pytorch_model.disqualified]
 
         _current_round = self.pytorch_model.round
@@ -944,6 +992,8 @@ class FLChallenge(ConnectionHelper):
                     "GasTransactions": roundTx
                     })
 
+                self.check_and_exit_losing_users()
+
                 _current_round = self.pytorch_model.round # Update current round to match with incremented round in close_round()
 
 
@@ -961,7 +1011,7 @@ class FLChallenge(ConnectionHelper):
             self.pytorch_model.shutdown()
 
 
-    
+
     def visualize_simulation(self, output_folder_path): # pragma: no cover
         os.makedirs(output_folder_path, exist_ok=True)  # ensure folder exists
         accuracy = [0] + self.pytorch_model.accuracy
@@ -1022,7 +1072,7 @@ class FLChallenge(ConnectionHelper):
             if i in pun.keys():
                 rew.append(j+pun[i])
             else:
-                rew.append(j)    
+                rew.append(j)
 
         y_reward = [item for sublist in zip(self._reward_balance,self._reward_balance) for item in sublist]
         y2_reward = [item for sublist in zip(rew,rew) for item in sublist]
@@ -1041,7 +1091,7 @@ class FLChallenge(ConnectionHelper):
                                  + f'malicious={self.pytorch_model.NUMBER_OF_BAD_CONTRIBUTORS}\n'\
                                  + f'copycat={self.pytorch_model.NUMBER_OF_FREERIDER_CONTRIBUTORS}', fontsize=15)
         axs[0].set_axis_off()
-        
+
         axs[1].set_xlabel('rounds\n(a)', fontsize=14)
         axs[2].set_xlabel('rounds\n(b)', fontsize=14)
         axs[3].set_xlabel('rounds\n(c)', fontsize=14)
@@ -1055,7 +1105,7 @@ class FLChallenge(ConnectionHelper):
 
         axs[2].tick_params(axis='both', which='major', labelsize=14)
         axs[3].tick_params(axis='both', which='major', labelsize=14)
-        
+
         if len(rounds) > 20:
             axs[1].set_xticks([i for i in rounds if i%5==0 or i == 0])
         else:
@@ -1070,12 +1120,12 @@ class FLChallenge(ConnectionHelper):
             axs[3].set_xticks([i for i in x_reward if i%5==0 or i == 0])
         else:
             axs[3].set_xticks([i for i in x_reward])
-    
+
         axs[1].set_xlim(0, max(rounds) if rounds else 0)
-        
+
         axs[2].yaxis.get_offset_text().set_fontsize(14)
         axs[3].yaxis.get_offset_text().set_fontsize(14)
-        
+
         axs[1].grid()
         axs[2].grid()
         axs[3].grid()
@@ -1087,7 +1137,7 @@ class FLChallenge(ConnectionHelper):
         lgnd = axs[3].legend(fontsize=10)
 
         # giving a title to my graph 
-        #axs[1].set_title(f'users={participants}; malicious={malicious_users}; copycat={sneaky_freerider}', fontsize=10) 
+        #axs[1].set_title(f'users={participants}; malicious={malicious_users}; copycat={sneaky_freerider}', fontsize=10)
 
         # function to show the plot
         print(output_folder_path)

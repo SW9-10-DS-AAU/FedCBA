@@ -85,6 +85,7 @@ contract OpenFLModel {
 
     mapping(uint8 => mapping(address => uint16)) public prev_accs;
     mapping(uint8 => mapping(address => uint16)) public prev_losses;
+    mapping(uint8 => mapping(address => uint)) public prev_grs;
 
     // Mapping from sender to all their submissions
     mapping(uint16 => mapping(address => AccuracyLossSubmission[]))
@@ -625,6 +626,7 @@ contract OpenFLModel {
         for (uint i = 0; i < participants.length; i++) {
             User storage user = users[participants[i]];
             if (user.isRegistered && !user.isDisqualified) {
+                prev_grs[round][user.addr] = user.globalReputationScore;
                 user.nrOfVotesFromUser = 0;
                 user.roundReputation = 0;
                 user.nrOfRoundsParticipated += 1;
@@ -880,6 +882,16 @@ contract OpenFLModel {
                 j++;
             }
         }
+    }
+
+
+    function getUserPriorGRS(address user, uint8 stepsBack)
+    external
+    view
+    returns (uint grs)
+    {
+        require(round >= stepsBack, "Not enough completed rounds");
+        return prev_grs[round - stepsBack][user];
     }
 
 
