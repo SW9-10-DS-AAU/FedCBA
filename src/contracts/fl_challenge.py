@@ -349,6 +349,8 @@ class FLChallenge(ConnectionHelper):
                     continue
                 if ix in [i.id for i in self.pytorch_model.disqualified]:
                     continue
+                if ix in [i.id for i in self.pytorch_model.exited]:
+                    continue
                 votee = [_u for _u in self.pytorch_model.participants if _u.id == ix][0]
                 addrs.append(votee.address)
                 votes.append(int(vote))
@@ -633,7 +635,7 @@ class FLChallenge(ConnectionHelper):
         self.txHashes.append(("exit", receipt["transactionHash"].hex(), receipt["gasUsed"]))
         logging.log_receipt(self, receipt, "exit")
 
-    def check_and_exit_losing_users(self): # pragma: no cover
+    def check_and_exit_losing_users(self):
         no_bad_users_remaining = all(
             u.attitude not in ("bad", "freerider")
             for u in self.pytorch_model.participants
@@ -657,6 +659,7 @@ class FLChallenge(ConnectionHelper):
             print(b(f"User {user.address[0:16]}... lost GRS two rounds in a row — leaving system."))
             self.exit_user(user)
             self.pytorch_model.participants.remove(user)
+            self.pytorch_model.exited.append(user)
 
 
     def get_events(self, w3, contract, receipt, event_names):

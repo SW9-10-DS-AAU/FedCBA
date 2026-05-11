@@ -35,6 +35,7 @@ class PytorchModel:
         self._pool = None
         self.participants = []
         self.disqualified = []
+        self.exited = []
         self.EPOCHS = epochs
         self.BATCHSIZE = batchsize
         self.run_id = 0 if run_id is None else run_id
