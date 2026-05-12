@@ -899,6 +899,10 @@ class FLChallenge(ConnectionHelper):
         logging.log_round_zero(self)
         try:
             for i in range(rounds):
+                if not self.pytorch_model.participants:
+                    print(b("No participants remaining — stopping simulation."))
+                    break
+
                 print(b(f"\n\nRound {_current_round} starts..."))
                 _round_start = time.perf_counter()
 
