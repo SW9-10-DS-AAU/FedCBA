@@ -349,8 +349,6 @@ class FLChallenge(ConnectionHelper):
                     continue
                 if ix in [i.id for i in self.pytorch_model.disqualified]:
                     continue
-                if ix in [i.id for i in self.pytorch_model.exited]:
-                    continue
                 votee = [_u for _u in self.pytorch_model.participants if _u.id == ix][0]
                 addrs.append(votee.address)
                 votes.append(int(vote))
@@ -636,30 +634,27 @@ class FLChallenge(ConnectionHelper):
         logging.log_receipt(self, receipt, "exit")
 
     def check_and_exit_losing_users(self):
-        no_bad_users_remaining = all(
-            u.attitude not in ("bad", "freerider")
-            for u in self.pytorch_model.participants
-        )
-        if not no_bad_users_remaining:
+        current_round = self.model.functions.round().call()
+        if current_round < 4:
             return
 
-        current_round = self.model.functions.round().call()
-        if current_round < 3:
-            return
+        threshold = self.MIN_BUY_IN // self.PUNISHMENT_FACTOR
 
         to_exit = []
         for u in self.pytorch_model.participants:
-            grs_current       = self.get_prior_grs_of_user(u.address, 1)
-            grs_one_round_ago = self.get_prior_grs_of_user(u.address, 2)
+            if u.attitude !=  "good":
+                continue
+            grs_current        = self.get_prior_grs_of_user(u.address, 1)
             grs_two_rounds_ago = self.get_prior_grs_of_user(u.address, 3)
-            if grs_current < grs_one_round_ago and grs_one_round_ago < grs_two_rounds_ago:
+            if grs_two_rounds_ago - grs_current > threshold:
                 to_exit.append(u)
 
         for user in to_exit:
-            print(b(f"User {user.address[0:16]}... lost GRS two rounds in a row — leaving system."))
+            print(b(f"User {user.address[0:16]}... lost more than {threshold} GRS over 2 rounds — leaving system."))
             self.exit_user(user)
             self.pytorch_model.participants.remove(user)
-            self.pytorch_model.exited.append(user)
+            user.voluntary_exit = True
+            self.pytorch_model.disqualified.append(user)
 
 
     def get_events(self, w3, contract, receipt, event_names):
