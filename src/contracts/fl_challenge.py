@@ -899,7 +899,7 @@ class FLChallenge(ConnectionHelper):
         logging.log_round_zero(self)
         try:
             for i in range(rounds):
-                if len(self.pytorch_model.participants <= 1):
+                if len(self.pytorch_model.participants) <= 1:
                     print(rb(f"Not enough participants ({len(self.pytorch_model.participants)}) -- Stopping run"))
                     break
 
