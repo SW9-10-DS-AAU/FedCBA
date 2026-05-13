@@ -699,8 +699,9 @@ def plot_merge_weights_by_behavior(agg_weights: pd.DataFrame, stats: pd.DataFram
 
 
 
-def save_figure(fig: plt.Figure, directory, suffix: str = "", dpi: int = 150):
+def save_figure(fig: plt.Figure, base_dir, prefix=None, suffix: str = "", dpi: int = 150):
     name = getattr(fig, "_plot_name", "figure")
-    path = Path(directory) / f"{name}{f'-{suffix}' if suffix else ''}.svg"
+    directory = Path(base_dir) / prefix if prefix is not None else Path(base_dir)
+    path = directory / f"{name}{f'-{suffix}' if suffix else ''}.svg"
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(path, dpi=dpi, bbox_inches="tight")
