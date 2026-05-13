@@ -623,10 +623,10 @@ class FLChallenge(ConnectionHelper):
             ex = self.model.functions.exitModel().build_transaction(ex)
             signed = w3.eth.account.sign_transaction(ex, private_key=user.privateKey)
             txHash = w3.eth.send_raw_transaction(signed.raw_transaction)
-        print("{:<17}   {} | {} | {:>27,.0f} WEI".format("User left:       ",
+        print("{:<17}   {} | {} | {:>27,.0f} GRS".format("User left:       ",
                                                          user.address[0:16] + "...",
                                                          txHash.hex()[0:6] + "...",
-                                                         self.w3.eth.get_balance(user.address)
+                                                         user._globalrep[-1]
                                                          ))
         receipt = self.w3.eth.wait_for_transaction_receipt(txHash, timeout=600, poll_latency=1)
         self.gas_exit.append(receipt["gasUsed"])
@@ -653,7 +653,7 @@ class FLChallenge(ConnectionHelper):
             print(b(f"User {user.address[0:16]}... lost more than {threshold} GRS over 2 rounds — leaving system."))
             self.exit_user(user)
             self.pytorch_model.participants.remove(user)
-            user.voluntary_exit = True
+            user.left_system = True
             self.pytorch_model.disqualified.append(user)
 
 
@@ -930,7 +930,8 @@ class FLChallenge(ConnectionHelper):
                     user._roundrep.append(self.get_round_reputation_of_user(user.address))
                     print(f"model participant: {user.address} gets {user._roundrep[-1]} round reputation")
                 for user in self.pytorch_model.disqualified:
-                    print(f"disqualified model participant: {user.address} has no round reputation, as he is disqualified")
+                    _state = "exited" if getattr(user, 'left_system', False) else "disqualified"
+                    print(f"{_state} model participant: {user.address} has no round reputation, as he is {_state}")
 
                 # A roundRep of 0, does not nec. mean mal.
                 contributors = [user for user in self.pytorch_model.participants if user._roundrep[-1] >= 0] # Keeps track of who will be merged in the_merge()

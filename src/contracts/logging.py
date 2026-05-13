@@ -142,7 +142,7 @@ def log_round(challenge, current_round, round_time,
         )
     for _user in challenge.pytorch_model.disqualified:
         challenge._logger.user_round(
-            round=current_round, user_id=_user.id, state="exited" if getattr(_user, 'voluntary_exit', False) else "disqualified",
+            round=current_round, user_id=_user.id, state="exited" if getattr(_user, 'left_system', False) else "disqualified",
             behavior=_user.attitude, role=_user.futureAttitude,
             grs=_user._globalrep[-1],
             sub_personal_acc=_user.currentAcc,

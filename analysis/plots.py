@@ -275,7 +275,8 @@ def plot_grs_by_user(
     fig, ax = plt.subplots(figsize=(9, 4))
 
     for (user_id, behavior), group in grs_users.groupby(["user_id", "role"]):
-        ax.plot(group["round"], group["grs"], label=f"User {user_id} ({ROLE_LABELS[behavior]})", alpha=0.5) # alpha: 50% transparency, so overlapping lines show through each other
+        active = group[group["state"] == "active"] if "state" in group.columns else group
+        ax.plot(active["round"], active["grs"], label=f"User {user_id} ({ROLE_LABELS[behavior]})", alpha=0.5) # alpha: 50% transparency, so overlapping lines show through each other
 
     if metadata is not None:
         experiment_id = grs_users["experiment_id"].iloc[0]
