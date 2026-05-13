@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from .uuid_extractor import extract_uuid_from_filename
+
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
@@ -109,6 +111,7 @@ def plot_accuracy_loss_over_rounds(agg_global: pd.DataFrame, error_band: str = "
 
     ax1.grid(True, alpha=0.3)
     fig._plot_name = "accuracy_loss_over_rounds"
+    fig._uuids = agg_global.attrs.get("experiment_ids", [])
     fig.tight_layout()
     return fig
 
@@ -150,6 +153,7 @@ def plot_strategy_comparison_lines(agg_by_strategy: pd.DataFrame, error_band: st
     ax.legend(handles, labels, title="Strategy")
     ax.grid(True, alpha=0.3)
     fig._plot_name = "strategy_comparison_lines"
+    fig._uuids = agg_by_strategy.attrs.get("experiment_ids", [])
     fig.tight_layout()
     return fig
 
@@ -180,6 +184,7 @@ def plot_strategy_comparison_boxplot(agg_final: pd.DataFrame) -> plt.Figure:
     ax.set_ylabel("Final-Round Accuracy (%)")
     ax.grid(True, alpha=0.3, axis="y")
     fig._plot_name = "strategy_comparison_boxplot"
+    fig._uuids = agg_final.attrs.get("experiment_ids", [])
     fig.tight_layout()
     return fig
 
@@ -220,6 +225,7 @@ def plot_grs_by_role(agg_grs: pd.DataFrame, error_band: str = "ci") -> plt.Figur
     ax.legend(handles, labels, title="Role:")
     ax.grid(True, alpha=0.3)
     fig._plot_name = "grs_by_role"
+    fig._uuids = agg_grs.attrs.get("experiment_ids", [])
     fig.tight_layout()
     return fig
 
@@ -261,6 +267,7 @@ def plot_contribution_score_by_role(agg_scores: pd.DataFrame, error_band: str = 
     ax.legend(handles, labels, title="Role")
     ax.grid(True, alpha=0.3)
     fig._plot_name = "contribution_score_by_role"
+    fig._uuids = agg_scores.attrs.get("experiment_ids", [])
     fig.tight_layout()
     return fig
 
@@ -303,6 +310,7 @@ def plot_grs_by_role_relative(agg_grs: pd.DataFrame, error_band: str = "ci") -> 
     ax.legend(handles, labels, title="Role:")
     ax.grid(True, alpha=0.3)
     fig._plot_name = "grs_by_role_relative"
+    fig._uuids = agg_grs.attrs.get("experiment_ids", [])
     fig.tight_layout()
     return fig
 
@@ -345,6 +353,7 @@ def plot_contribution_score_by_role_relative(agg_scores: pd.DataFrame, error_ban
     ax.legend(handles, labels, title="Role:")
     ax.grid(True, alpha=0.3)
     fig._plot_name = "contribution_score_by_role_relative"
+    fig._uuids = agg_scores.attrs.get("experiment_ids", [])
     fig.tight_layout()
     return fig
 
@@ -388,6 +397,7 @@ def plot_grs_by_user(
     ax.legend(title="Users", loc="lower left")
     ax.grid(True, alpha=0.3) # alpha: makes the grid subtle/faint so it doesn't compete with the data
     fig._plot_name = "grs_by_user"
+    fig._uuids = list(grs_users["experiment_id"].unique())
     fig.tight_layout()
     return fig
 
@@ -428,6 +438,7 @@ def plot_global_acc_by_aggregation_strategy(acc_by_strategy: pd.DataFrame, error
     ax.legend(handles, labels, title="Agg. Strategy")
     ax.grid(True, alpha=0.3)
     fig._plot_name = "global_acc_by_aggregation_strategy"
+    fig._uuids = acc_by_strategy.attrs.get("experiment_ids", [])
     fig.tight_layout()
 
     return fig
@@ -470,6 +481,7 @@ def plot_global_loss_by_aggregation_strategy(loss_by_strategy: pd.DataFrame, err
     ax.legend(handles, labels, title="Agg. Strategy:")
     ax.grid(True, alpha=0.3)
     fig._plot_name = "global_loss_by_aggregation_strategy"
+    fig._uuids = loss_by_strategy.attrs.get("experiment_ids", [])
     fig.tight_layout()
 
     return fig
@@ -521,6 +533,7 @@ def plot_gas_cost_by_tx_type(agg_gas: pd.DataFrame) -> plt.Figure:
     ax.set_xlabel("Transaction Type")
     ax.set_ylabel("Mean Gas Used")
     fig._plot_name = "gas_cost_by_tx_type"
+    fig._uuids = agg_gas.attrs.get("experiment_ids", [])
     handles, labels = ax.get_legend_handles_labels()
     handles.append(Line2D([0], [0], color="black", linewidth=0, marker="|", markersize=10, markeredgewidth=1.5))
     labels.append("95% CI")
@@ -616,6 +629,7 @@ def plot_round_kicked_by_strategy(
     ax.set_ylabel("Round Kicked (lower = removed sooner)")
     ax.set_title(title)
     fig._plot_name = "round_kicked_by_strategy"
+    fig._uuids = agg_kicked.attrs.get("experiment_ids", [])
     ax.legend(title="Role")
     ax.grid(axis="y", linestyle="--", alpha=0.5)
     ax.set_axisbelow(True)
@@ -694,14 +708,58 @@ def plot_merge_weights_by_behavior(agg_weights: pd.DataFrame, stats: pd.DataFram
             labels.append(band_label)
         ax.legend(handles, labels, title="Behavior")
     fig._plot_name = "merge_weights_by_behavior"
+    fig._uuids = agg_weights.attrs.get("experiment_ids", [])
     fig.tight_layout()
     return fig
 
 
 
-def save_figure(fig: plt.Figure, base_dir, prefix=None, suffix: str = "", dpi: int = 150):
-    name = getattr(fig, "_plot_name", "figure")
-    directory = Path(base_dir) / prefix if prefix is not None else Path(base_dir)
-    path = directory / f"{name}{f'-{suffix}' if suffix else ''}.svg"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(path, dpi=dpi, bbox_inches="tight")
+def _next_graph_id(directory: Path) -> str:
+    existing = [p.name for p in directory.glob("*.svg")]
+    ids = []
+    for name in existing:
+        part = name.split("-")[0]
+        if part.isdigit():
+            ids.append(int(part))
+    next_id = max(ids) + 1 if ids else 1
+    return f"{next_id:03d}"
+
+
+def delete_figure(directory: str | Path, graph_id: str) -> None:
+    directory = Path(directory)
+    matches = list(directory.glob(f"{graph_id}-*.svg"))
+    if not matches:
+        raise FileNotFoundError(f"No SVG with graph_id '{graph_id}' in {directory}")
+
+    for svg in matches:
+        svg.unlink()
+
+    mappings_path = directory / "mappings.txt"
+
+    if mappings_path.exists():
+        lines = mappings_path.read_text().splitlines(keepends=True)
+        kept = [l for l in lines if not l.startswith(f"{graph_id}:") and l.strip()]
+        if kept:
+            mappings_path.write_text("".join(kept))
+        else:
+            mappings_path.unlink()
+
+
+def save_figure(fig: plt.Figure, base_dir, experiment_name=None, suffix: str = "", dpi: int = 300):
+    plot_name = getattr(fig, "_plot_name", "figure")
+    uuids = getattr(fig, "_uuids", [])
+    directory = Path(base_dir) / experiment_name if experiment_name is not None else Path(base_dir)
+    directory.mkdir(parents=True, exist_ok=True)
+
+    graph_id = _next_graph_id(directory)
+    stem = f"{graph_id}-{plot_name}{f'-{suffix}' if suffix else ''}"
+    fig.savefig(directory / f"{stem}.svg", dpi=dpi, bbox_inches="tight")
+
+    if uuids:
+        with open(directory / "mappings.txt", "a") as f:
+            for uid in uuids:
+                try:
+                    uid = extract_uuid_from_filename(uid)
+                except ValueError:
+                    pass  # already a bare UUID or unrecognised format — write as-is
+                f.write(f"{graph_id}: {uid}\n")
