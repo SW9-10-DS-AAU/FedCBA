@@ -513,11 +513,12 @@ contract OpenFLModel {
 
     // Evaluation scores based on evaluation votes.
     function settleEvaluationScores() internal returns (uint evaluation_disqualification_pool) {
+        uint staking_min_grs = min_collateral / punishfactorContrib;
+
         for (uint i = 0; i < participants.length; i++) {
             User storage user = users[participants[i]];
             if (_isEligibleForRewards(user)) {
                 require(hasSubmittedEvaluationScore[round][user.addr], "Evaluation score not submitted for user"); // 0 means no evaluation score submitted. // 0 means no evaluation score submitted.
-                uint staking_min_grs = min_collateral / punishfactorContrib;
                 uint evaluation_reward = (evaluationScore[round][user.addr] * staking_min_grs) / 1e18;
                 uint new_global_rep = user.globalReputationScore + evaluation_reward - staking_min_grs;
 
@@ -525,6 +526,7 @@ contract OpenFLModel {
                     if (user.isPassivePunished && evaluation_reward > staking_min_grs) { // if users with passive punishment get rewarded, strip that reward and add surplus to pool.
                         evaluation_disqualification_pool += evaluation_reward - staking_min_grs;
                         evaluation_reward = staking_min_grs;
+                        new_global_rep = user.globalReputationScore + evaluation_reward - staking_min_grs;
                     }
                     user.globalReputationScore = new_global_rep;
 
@@ -727,6 +729,9 @@ contract OpenFLModel {
             prev_loss >= 0 && prev_loss <= 65535,
             "PREVIOUS LOSS NOT BETWEEN 0 AND 65535 in submitFeedbackBytesAndAccuraciesLosses"
         );
+        prev_accs[round][msg.sender] = prev_acc;
+        prev_losses[round][msg.sender] = prev_loss;
+
         // EXACT same for-loop as fallback
         for (uint i = 0; i < ads.length; i++) {
             if (!testing) {
