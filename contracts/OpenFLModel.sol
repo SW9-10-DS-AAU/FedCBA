@@ -357,7 +357,10 @@ contract OpenFLModel {
 
     function isFeedBackRoundDone() public view returns (bool roundClosed) {
         if (nrOfActiveParticipants == 0) {
-            return false; // no participants => not done
+            return false;
+        }
+        if (nrOfActiveParticipants < 3) {
+            return true; // not enough participants for meaningful votes — skip feedback round
         }
 
         for (uint i = 0; i < participants.length; i++) {
@@ -408,8 +411,18 @@ contract OpenFLModel {
 
     function settle() public virtual {
         uint freeriderLock = collectFreeriderFees(); // A global total of sum of freerider penalties
-        uint totalPunishment = punishMaliciousUsers();
-        punishHelpers();
+        uint totalPunishment = 0;
+        if (nrOfActiveParticipants >= 3) {
+            totalPunishment = punishMaliciousUsers();
+            punishHelpers();
+        } else {
+            for (uint i = 0; i < participants.length; i++) {
+                User storage u = users[participants[i]];
+                if (u.isRegistered && !u.isDisqualified) {
+                    u.whitelistedForRewards = true;
+                }
+            }
+        }
         totalPunishment += paybackFreeriders(freeriderLock);
         uint evaluation_disqualification_pool = settleEvaluationScores();
         uint positiveSumOfWeightedContribScore = settleContributionScores(
