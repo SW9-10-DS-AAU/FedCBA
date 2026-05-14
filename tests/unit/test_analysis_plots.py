@@ -8,6 +8,9 @@ Each test verifies:
 matplotlib is forced to the non-interactive Agg backend so tests run headlessly.
 """
 import matplotlib
+
+from tests.analysis_helpers import make_users, make_metadata
+
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
