@@ -61,14 +61,14 @@ PRESETS = {
     ),
 
     "test": ExperimentPreset(
-        number_of_good_contributors=2,
+        number_of_good_contributors=4,
         number_of_bad_contributors=1,
         number_of_freerider_contributors=0,
         minimum_rounds=10,
         epochs=1,
         batch_size=32,
         use_outlier_detection=[True],
-        contribution_score_strategy=["loss_only"],
+        contribution_score_strategy=["dotproduct"],
         freerider_noise_scale=[0],
         freerider_start_round=[2],
         freerider_attack_type=["delta_weight"],

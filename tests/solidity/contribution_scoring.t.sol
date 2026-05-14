@@ -56,6 +56,7 @@ contract ContributionScoringHarness is OpenFLModel {
 
     function _setContribution(address user, int256 score) external {
         contributionScore[round][user] = score;
+        hasSubmittedContributionScore[round][user] = true;
     }
 
     function _setVotesPerRound(uint8 votes) external {

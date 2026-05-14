@@ -97,7 +97,7 @@ def print_shapley_warnings():
 
 # ===== Strategy implementations =====
 
-def _calculate_scores_dotproduct(challenge, users): # pragma: no cover
+def _calculate_scores_dotproduct(challenge, users, _current_round_no): # pragma: no cover
     """
     MAD-based scoring: robust per-weight outlier filtering before scoring.
     """
@@ -128,7 +128,7 @@ def _calculate_scores_dotproduct(challenge, users): # pragma: no cover
     return scores
 
 
-def _calculate_scores_naive(challenge, users): # pragma: no cover
+def _calculate_scores_naive(challenge, users, _current_round_no): # pragma: no cover
     """
     Equal-share scoring: everyone contributing gets 1 / num_mergers.
     """  # unused; included for signature consistency
