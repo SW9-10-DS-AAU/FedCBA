@@ -937,6 +937,8 @@ class FLChallenge(ConnectionHelper):
                 contributors = [user for user in self.pytorch_model.participants if user._roundrep[-1] >= 0] # Keeps track of who will be merged in the_merge()
                 if len(contributors) == 0: # If all are negative, we merge everyone and let the contribution score calculation sort them out.
                     contributors = self.make_everyone_contributors()
+                elif len(self.pytorch_model.participants) == 2:
+                    contributors = self.make_everyone_contributors()
 
                 users_weight_collector = {}
                 agg_switch_collector = {}
