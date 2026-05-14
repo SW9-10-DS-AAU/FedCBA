@@ -411,6 +411,7 @@ contract OpenFLModel {
         uint totalPunishment = punishMaliciousUsers();
         punishHelpers();
         totalPunishment += paybackFreeriders(freeriderLock);
+        uint evaluation_disqualification_pool = settleEvaluationScores();
         uint positiveSumOfWeightedContribScore = settleContributionScores(
             totalPunishment,
             evaluation_disqualification_pool
