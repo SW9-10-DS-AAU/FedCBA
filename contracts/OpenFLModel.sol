@@ -65,6 +65,7 @@ contract OpenFLModel {
     mapping(uint8 => mapping(address => bool)) public hasSubmittedEvaluationScore; // round => user => has submitted evaluation score
     mapping(uint8 => uint16) public nrOfContributionScores; // round => number of submissions
     mapping(uint8 => uint16) public nrOfEvaluationScores; // round => number of submissions
+    mapping(address => bool) public wantsToLeave;
 
     struct AccuracyLossSubmission {
         address[] adrs;
@@ -197,6 +198,7 @@ contract OpenFLModel {
     event Reward                (address user, int256 roundScore, uint win, uint newReputation);
     event ContributionPunishment(address user, int256 roundScore, uint loss, uint newReputation);
     event EvaluationVotingReward(address user, uint rewarded, uint staked, uint newReputation);
+    event UserExited            (address indexed user, uint grs);
 
     constructor(
         bytes32 _modelHash,
@@ -657,33 +659,86 @@ contract OpenFLModel {
         user.isRegistered = false;
     }
 
-    // Exit contract - Not safe, gaurds exists but will crash the contract if not met, exits should be queued?
-    function exitModel() public {
-        User storage user = users[msg.sender];
-        if (!user.isRegistered) {
-            return; // Do nothing if not registered
-        }
+    function _exitModel(address addr) internal {
+        User storage user = users[addr];
+        if (!user.isRegistered) return;
 
         uint val = user.globalReputationScore;
         if (address(this).balance < val) {
             val = address(this).balance;
         }
-//    require(address(this).balance >= val, "Insufficient contract balance");
+
         user.globalReputationScore = 0;
         user.isRegistered = false;
         nrOfActiveParticipants -= 1;
+        wantsToLeave[addr] = false;
 
-        // Clean up participant array
         for (uint i = 0; i < participants.length; i++) {
-            if (participants[i] == msg.sender) {
+            if (participants[i] == addr) {
                 participants[i] = address(0);
                 break;
             }
         }
 
+        emit UserExited(addr, val);
+
         if (val > 0) {
-            (bool success,) = payable(msg.sender).call{value: val}("");
+            (bool success,) = payable(addr).call{value: val}("");
             require(success, "Transfer failed");
+        }
+    }
+
+    function exitModel() public {
+        _exitModel(msg.sender);
+    }
+
+    function markWantsToLeave() public {
+        require(users[msg.sender].isRegistered, "SNR");
+        require(!wantsToLeave[msg.sender], "ALR");
+        wantsToLeave[msg.sender] = true;
+    }
+
+    function processExits() public {
+        uint registeredWantToLeave = 0;
+        uint totalRegistered = 0;
+
+        for (uint i = 0; i < participants.length; i++) {
+            address addr = participants[i];
+            if (addr != address(0) && users[addr].isRegistered) {
+                totalRegistered++;
+                if (wantsToLeave[addr]) registeredWantToLeave++;
+            }
+        }
+
+        if (registeredWantToLeave == 0) return;
+
+        uint remaining = totalRegistered - registeredWantToLeave;
+
+        if (remaining <= 1) {
+            // Too few users would remain — distribute rewardLeft to all and exit everyone
+            if (rewardLeft > 0 && totalRegistered > 0) {
+                uint share = rewardLeft / totalRegistered;
+                rewardLeft = 0;
+                for (uint i = 0; i < participants.length; i++) {
+                    address addr = participants[i];
+                    if (addr != address(0) && users[addr].isRegistered) {
+                        users[addr].globalReputationScore += share;
+                    }
+                }
+            }
+            for (uint i = 0; i < participants.length; i++) {
+                address addr = participants[i];
+                if (addr != address(0) && users[addr].isRegistered) {
+                    _exitModel(addr);
+                }
+            }
+        } else {
+            for (uint i = 0; i < participants.length; i++) {
+                address addr = participants[i];
+                if (addr != address(0) && users[addr].isRegistered && wantsToLeave[addr]) {
+                    _exitModel(addr);
+                }
+            }
         }
     }
 

@@ -642,7 +642,7 @@ class FLChallenge(ConnectionHelper):
 
         to_exit = []
         for u in self.pytorch_model.participants:
-            if u.attitude !=  "good":
+            if u.attitude != "good":
                 continue
             grs_current        = self.get_prior_grs_of_user(u.address, 1)
             grs_two_rounds_ago = self.get_prior_grs_of_user(u.address, 3)
@@ -650,11 +650,50 @@ class FLChallenge(ConnectionHelper):
                 to_exit.append(u)
 
         for user in to_exit:
-            print(b(f"User {user.address[0:16]}... lost more than {threshold} GRS over 2 rounds — leaving system."))
-            self.exit_user(user)
-            self.pytorch_model.participants.remove(user)
-            user.left_system = True
-            self.pytorch_model.disqualified.append(user)
+            print(b(f"User {user.address[0:16]}... lost more than {threshold} GRS over 2 rounds — signalling leave."))
+            self._mark_wants_to_leave(user)
+
+    def _mark_wants_to_leave(self, user):
+        if self.fork:
+            tx = super().build_tx(user.address, self.modelAddress, 0)
+            txHash = self.model.functions.markWantsToLeave().transact(tx)
+        else:
+            w3 = ConnectionHelper.get_w3()
+            nonce = w3.eth.get_transaction_count(user.address)
+            tx = super().build_non_fork_tx(user.address, nonce)
+            tx = self.model.functions.markWantsToLeave().build_transaction(tx)
+            signed = w3.eth.account.sign_transaction(tx, private_key=user.privateKey)
+            txHash = w3.eth.send_raw_transaction(signed.raw_transaction)
+        receipt = self.w3.eth.wait_for_transaction_receipt(txHash, timeout=600, poll_latency=1)
+        self.txHashes.append(("markLeave", receipt["transactionHash"].hex(), receipt["gasUsed"]))
+        logging.log_receipt(self, receipt, "markLeave")
+
+    def _process_exits(self):
+        coordinator = self.pytorch_model.participants[0]
+        if self.fork:
+            tx = super().build_tx(coordinator.address, self.modelAddress, 0)
+            txHash = self.model.functions.processExits().transact(tx)
+        else:
+            w3 = ConnectionHelper.get_w3()
+            nonce = w3.eth.get_transaction_count(coordinator.address)
+            tx = super().build_non_fork_tx(coordinator.address, nonce)
+            tx = self.model.functions.processExits().build_transaction(tx)
+            signed = w3.eth.account.sign_transaction(tx, private_key=coordinator.privateKey)
+            txHash = w3.eth.send_raw_transaction(signed.raw_transaction)
+        receipt = self.w3.eth.wait_for_transaction_receipt(txHash, timeout=600, poll_latency=1)
+        self.gas_exit.append(receipt["gasUsed"])
+        self.txHashes.append(("processExits", receipt["transactionHash"].hex(), receipt["gasUsed"]))
+        logging.log_receipt(self, receipt, "processExits")
+
+        exited_events = self.get_events(self.w3, self.model, receipt, ["UserExited"])
+        exited_addresses = {e["args"]["user"] for e in exited_events.get("UserExited", [])}
+
+        for user in list(self.pytorch_model.participants):
+            if user.address in exited_addresses:
+                print(b(f"User {user.address[0:16]}... exited with {user._globalrep[-1]:,.0f} GRS"))
+                self.pytorch_model.participants.remove(user)
+                user.left_system = True
+                self.pytorch_model.disqualified.append(user)
 
 
     def get_events(self, w3, contract, receipt, event_names):
@@ -998,6 +1037,7 @@ class FLChallenge(ConnectionHelper):
                     })
 
                 self.check_and_exit_losing_users()
+                self._process_exits()
 
                 _current_round = self.pytorch_model.round # Update current round to match with incremented round in close_round()
 
