@@ -178,7 +178,7 @@ class FLChallenge(ConnectionHelper):
 
         steps_back = 0
 
-        while len(losses_per_round) < n_rounds and steps_back < contract_round:
+        while len(losses_per_round) < n_rounds and steps_back <= contract_round:
             loss_that_round = self.model.functions.agreedPreviousLoss(contract_round - steps_back).call()
             if loss_that_round != 0: losses_per_round.append(loss_that_round)
             steps_back = steps_back + 1
