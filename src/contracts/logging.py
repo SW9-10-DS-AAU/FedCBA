@@ -209,7 +209,7 @@ def log_exits(challenge, events, current_round_no):
             round=current_round_no,
             user_id=u.id if u else None,
             user_address=args["user"],
-            grs_paid_out=args["val"],
+            grs_paid_out=args["grs"],
         )
 
 

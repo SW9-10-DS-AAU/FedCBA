@@ -668,7 +668,7 @@ class FLChallenge(ConnectionHelper):
         exited_list = exited_events.get("UserExited", [])
 
         if exited_list:
-            addr_to_val = {e["args"]["user"]: e["args"]["val"] for e in exited_list}
+            addr_to_val = {e["args"]["user"]: e["args"]["grs"] for e in exited_list}
             for user in list(self.pytorch_model.participants):
                 if user.address in addr_to_val:
                     grs_at_exit = addr_to_val[user.address]
