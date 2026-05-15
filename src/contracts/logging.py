@@ -198,6 +198,21 @@ def log_punishments(challenge, events, current_round_no):
         )
 
 
+def log_exits(challenge, events, current_round_no):
+    if challenge._logger is None:
+        return
+    user_map = {u.address: u for u in challenge.pytorch_model.participants + challenge.pytorch_model.disqualified}
+    for ev in events.get("UserExited", []):
+        args = ev["args"]
+        u = user_map.get(args["user"])
+        challenge._logger.exit(
+            round=current_round_no,
+            user_id=u.id if u else None,
+            user_address=args["user"],
+            grs_paid_out=args["val"],
+        )
+
+
 def log_evaluation_voting_rewards(challenge, events, current_round_no):
     """Forward EvaluationVotingReward contract events to the logger."""
     if challenge._logger is None:

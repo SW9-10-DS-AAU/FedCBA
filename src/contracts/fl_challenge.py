@@ -665,14 +665,22 @@ class FLChallenge(ConnectionHelper):
         logging.log_receipt(self, receipt, "processExits")
 
         exited_events = self.get_events(self.w3, self.model, receipt, ["UserExited"])
-        exited_addresses = {e["args"]["user"] for e in exited_events.get("UserExited", [])}
+        exited_list = exited_events.get("UserExited", [])
 
-        for user in list(self.pytorch_model.participants):
-            if user.address in exited_addresses:
-                print(b(f"User {user.address[0:16]}... exited with {user._globalrep[-1]:,.0f} GRS"))
-                self.pytorch_model.participants.remove(user)
-                user.left_system = True
-                self.pytorch_model.disqualified.append(user)
+        if exited_list:
+            addr_to_val = {e["args"]["user"]: e["args"]["val"] for e in exited_list}
+            for user in list(self.pytorch_model.participants):
+                if user.address in addr_to_val:
+                    grs_at_exit = addr_to_val[user.address]
+                    user._globalrep.append(grs_at_exit)
+                    user.isRegistered = False
+                    user.left_system = True
+                    self.pytorch_model.participants.remove(user)
+                    self.pytorch_model.disqualified.append(user)
+                    print(b(f"User {user.address[0:16]}... exited with {grs_at_exit:,.0f} GRS"))
+            logging.log_exits(self, exited_events, self.pytorch_model.round)
+            print("-----------------------------------------------------------------------------------\n")
+
 
 
     def get_events(self, w3, contract, receipt, event_names):
@@ -733,12 +741,12 @@ class FLChallenge(ConnectionHelper):
         #     print("-----------------------------------------------------------------------------------\n")
 
         if passive_punish_events:
-            print(b("PASSIVE PUNISHMENTS"))
             for ev in passive_punish_events:
                 args = ev["args"]
-                print(green(f"USER/VICTIM @    {args['victim']}"))
-                print(green(f"ROUND SCORE:     {args['roundScore']:,}"))
-                print(green(f"PUNISHED TARGET: {args['punishedTarget']}\n"))
+                warnings.warn(
+                    f"Passive punishment: victim={args['victim'][:16]}... "
+                    f"roundScore={args['roundScore']:,} punishedTarget={args['punishedTarget']}"
+                )
 
         if eval_reward_events:
             # print(b("EVALUATION VOTING REWARDS DISTRIBUTION"))
@@ -977,8 +985,7 @@ class FLChallenge(ConnectionHelper):
 
                 # If not dotproduct, we calculate contribution score before the merge
                 if not self.experiment_config.contribution_score_strategy == "dotproduct":
-                    avg_losses = self.get_all_n_prior_losses(3)
-                    aggregation.the_merge(self.pytorch_model, _current_round, contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector, avg_prior_losses=avg_losses, warning_collector=warning_collector)
+                    aggregation.the_merge(self.pytorch_model, _current_round, contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector, avg_prior_losses=None, warning_collector=warning_collector)
                     for msg in warning_collector:
                         logging.log_warning(self, msg, round=_current_round)
 
