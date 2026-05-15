@@ -140,6 +140,29 @@ class FLChallenge(ConnectionHelper):
         return prev_accuracies, prev_losses
 
 
+    def submit_previous_loss(self, avg_prev_loss):
+        avg_prev_loss = int(avg_prev_loss)
+        if self.fork:
+            tx = super().build_tx(self.w3.eth.default_account, self.modelAddress, 0)
+            txHash = self.model.functions.submitPreviousLoss(avg_prev_loss).transact(tx)
+        else:
+            nonce = self.w3.eth.get_transaction_count(self.pytorch_model.participants[0].address, 'pending')
+            spl = super().build_non_fork_tx(self.pytorch_model.participants[0].address, nonce)
+            spl =  self.model.functions.submitPreviousLoss(avg_prev_loss).build_transaction(spl)
+            pk = self.pytorch_model.participants[0].privateKey
+            signed = self.w3.eth.account.sign_transaction(spl, private_key=pk)
+            txHash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
+
+        receipt = self.w3.eth.wait_for_transaction_receipt(txHash,
+                                                        timeout=600,
+                                                        poll_latency=1)
+
+        self.txHashes.append(("submit_previous_loss", receipt["transactionHash"].hex(), receipt["gasUsed"]))
+        logging.log_receipt(self, receipt, "submit_previous_loss")
+
+        print(f"Submitted previous loss: {avg_prev_loss}")
+
+
     def get_all_n_prior_losses(self, n_rounds: int):
         # returns whatever rounds are available, up to n_rounds. So:
         #   - Round 0 or 1: returns empty list []
@@ -153,12 +176,16 @@ class FLChallenge(ConnectionHelper):
         contract_round = self.model.functions.round().call()
         losses_per_round = []
 
-        for steps_back in range(1, n_rounds + 1):
-            if contract_round >= steps_back:
-                losses = self.model.functions.getAllNPriorLosses(steps_back).call()
-                mad_losses = contribution.remove_outliers_mad(losses)
-                losses_per_round.append(np.mean(mad_losses))
-        return losses_per_round  # [round-1, round-2, ..., round-n]
+        steps_back = 0
+
+        while len(losses_per_round) < n_rounds and steps_back < contract_round:
+            loss_that_round = self.model.functions.agreedPreviousLoss(contract_round - steps_back).call()
+            if loss_that_round != 0: losses_per_round.append(loss_that_round)
+            steps_back = steps_back + 1
+
+
+        print(f"Returning losses from the last {len(losses_per_round)} rounds with previous_losses (up to {n_rounds} requested): {losses_per_round}")
+        return losses_per_round  # [round-0, round-1, ..., round-n+1] array of size n_rounds max
 
 
     def get_reward_left(self): # pragma: no cover
@@ -906,7 +933,11 @@ class FLChallenge(ConnectionHelper):
 
                 # If not dotproduct, we calculate contribution score before the merge
                 if not self.experiment_config.contribution_score_strategy == "dotproduct":
-                    avg_losses = self.get_all_n_prior_losses(3)
+
+                    avg_losses = None
+                    if self.experiment_config.aggregation_rule.startswith("partial_switch"):
+                        avg_losses = self.get_all_n_prior_losses(3)
+
                     aggregation.the_merge(self.pytorch_model, _current_round, contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector, avg_prior_losses=avg_losses, warning_collector=warning_collector)
                     for msg in warning_collector:
                         logging.log_warning(self, msg, round=_current_round)

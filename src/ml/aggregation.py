@@ -183,9 +183,11 @@ def invoke_partial_switch(pm, users_contrib_scores, switch_type: str, func1: Cal
             return func1(users_contrib_scores)
         if switch_type == "partial_switch_fixed_loss":
             return partial_switch_fixed_loss(users_contrib_scores, avg_prior_losses[0], func1, func2, agg_switch_collector=agg_switch_collector)
-        return partial_switch_loss_retrospective(users_contrib_scores, avg_prior_losses, func1, func2, agg_switch_collector=agg_switch_collector)
+        elif switch_type == "partial_switch_retrospective":
+            return partial_switch_loss_retrospective(users_contrib_scores, avg_prior_losses, func1, func2, agg_switch_collector=agg_switch_collector)
+        else:
+            raise ValueError(f"Unknown partial switch type: {switch_type}")
 
-    raise ValueError(f"Unknown partial switch type: {switch_type}")
 
 
 def binary_switch(pm, users_contrib_scores, func_1, func_2, agg_switch_collector, _current_round_no):
@@ -303,6 +305,7 @@ def partial_switch_loss_retrospective(users_contrib_scores, avg_prior_losses, fu
             improvement_ratio = max(0.0, min(1.0, -slope / mean_loss))
     else:
         improvement_ratio = 1.0  # not enough data, go strict
+        print(yellow("Warning: Not enough prior losses for retrospective switch; defaulting to func_1. Provide at least 2 loss values for dynamic switching."))
 
     # Map ratio → angle [0°, 90°] → sine blend weight.
     # sin(0°) = 0  → loss plateauing  → fully func_2 (soft/rewarding)

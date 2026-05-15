@@ -61,9 +61,9 @@ PRESETS = {
     ),
 
     "test": ExperimentPreset(
-        number_of_good_contributors=2,
+        number_of_good_contributors=4,
         number_of_bad_contributors=1,
-        number_of_freerider_contributors=0,
+        number_of_freerider_contributors=1,
         minimum_rounds=10,
         epochs=1,
         batch_size=32,
@@ -75,13 +75,13 @@ PRESETS = {
         malicious_noise_scale=[0.1],
         malicious_start_round=[2],
         malicious_attack_type=["byzantine"],
-        aggregation_rule=["binary_switch[positives_only,FedAVG]"],
-        data_distribution=["dirichlet_split"],
-        dirichlet_alpha=[0.5],
+        aggregation_rule=["partial_switch[retro,positives_only,FedAVG]"],
+        data_distribution=["random_split"],
+        dirichlet_alpha=None,
         number_of_runs=3
     ),
 
-    "mnist_openfl_w_outlier": ExperimentPreset(
+    "mnist_openfl_low_noise": ExperimentPreset(
         number_of_good_contributors=4,
         number_of_bad_contributors=1,
         number_of_freerider_contributors=1,
@@ -89,18 +89,82 @@ PRESETS = {
         epochs=1,
         batch_size=32,
         use_outlier_detection=[True],
-        contribution_score_strategy=["loss_only", "accuracy_only", "accuracy_loss", "naive", "dotproduct"],
-        freerider_noise_scale=[0, 0.01, 0.1, 0.5, 1.0],
+        contribution_score_strategy=["loss_only", "accuracy_only", "accuracy_loss", "naive"],
+        freerider_noise_scale=[0.01],
         freerider_start_round=[1, 3, 5],
         freerider_attack_type=None,
-        malicious_noise_scale=[0, 0.01, 0.1, 0.5, 1.0],
-        malicious_start_round=[1, 3, 5],
+        malicious_noise_scale=None,
+        malicious_start_round=None,
         malicious_attack_type=None,
         aggregation_rule=["FedAVG"],
         data_distribution=["random_split"],
         dirichlet_alpha=None,
-        number_of_runs=1
+        number_of_runs=10
     ),
+
+"mnist_openfl_high_noise": ExperimentPreset(
+        number_of_good_contributors=4,
+        number_of_bad_contributors=1,
+        number_of_freerider_contributors=1,
+        minimum_rounds=10,
+        epochs=1,
+        batch_size=32,
+        use_outlier_detection=[True],
+        contribution_score_strategy=["loss_only", "accuracy_only", "accuracy_loss", "naive"],
+        freerider_noise_scale=[0.1],
+        freerider_start_round=[1, 3, 5],
+        freerider_attack_type=None,
+        malicious_noise_scale=None,
+        malicious_start_round=None,
+        malicious_attack_type=None,
+        aggregation_rule=["FedAVG"],
+        data_distribution=["random_split"],
+        dirichlet_alpha=None,
+        number_of_runs=10
+    ),
+
+"cifar_openfl_low_noise": ExperimentPreset(
+        number_of_good_contributors=6,
+        number_of_bad_contributors=1,
+        number_of_freerider_contributors=1,
+        minimum_rounds=25,
+        epochs=25,
+        batch_size=128,
+        use_outlier_detection=[True],
+        contribution_score_strategy=["loss_only", "accuracy_only", "accuracy_loss", "naive"],
+        freerider_noise_scale=[0.01],
+        freerider_start_round=[1, 3, 5],
+        freerider_attack_type=None,
+        malicious_noise_scale=None,
+        malicious_start_round=None,
+        malicious_attack_type=None,
+        aggregation_rule=["FedAVG"],
+        data_distribution=["random_split"],
+        dirichlet_alpha=None,
+        number_of_runs=10
+    ),
+
+"cifar_openfl_high_noise": ExperimentPreset(
+        number_of_good_contributors=6,
+        number_of_bad_contributors=1,
+        number_of_freerider_contributors=1,
+        minimum_rounds=25,
+        epochs=25,
+        batch_size=128,
+        use_outlier_detection=[True],
+        contribution_score_strategy=["loss_only", "accuracy_only", "accuracy_loss", "naive"],
+        freerider_noise_scale=[0.1],
+        freerider_start_round=[1, 3, 5],
+        freerider_attack_type=None,
+        malicious_noise_scale=None,
+        malicious_start_round=None,
+        malicious_attack_type=None,
+        aggregation_rule=["FedAVG"],
+        data_distribution=["random_split"],
+        dirichlet_alpha=None,
+        number_of_runs=10
+    ),
+
 
     "mnist_openfl_w/o_outlier": ExperimentPreset(
         number_of_good_contributors=4,

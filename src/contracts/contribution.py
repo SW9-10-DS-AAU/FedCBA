@@ -160,6 +160,8 @@ def _calculate_scores_accuracy_loss(challenge, users, mad_threshold=1.1): # prag
     avg_prev_acc = np.mean(mad_prev_accuracies)
     avg_prev_loss = np.mean(mad_prev_losses)
 
+    challenge.submit_previous_loss(avg_prev_loss)
+
     avg_accuracies = []  # after loop: [30, 20, 30, 40]
     avg_losses = []  # after loop: [60, 70, 50, 80]
 
@@ -284,6 +286,10 @@ def _calculate_scores_loss_only(challenge, users, _current_round_no, mad_thresho
     prev_info = {}
     mad_prev_losses = remove_outliers_mad(prev_losses, mad_threshold, collector=prev_info, label="previous")
     avg_prev_loss = np.mean(mad_prev_losses)
+
+    challenge.submit_previous_loss(avg_prev_loss)
+    print(f"Submitted previous loss: {avg_prev_loss}")
+
     avg_losses = []  # after loop: [60, 70, 50, 80]
     per_user_outlier_info = []
     softmax_records = []
