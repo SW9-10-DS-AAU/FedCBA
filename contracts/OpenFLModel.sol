@@ -668,6 +668,8 @@ contract OpenFLModel {
             val = address(this).balance;
         }
 
+        emit UserExited(addr, user.globalReputationScore);
+
         user.globalReputationScore = 0;
         user.isRegistered = false;
         nrOfActiveParticipants -= 1;
@@ -679,8 +681,6 @@ contract OpenFLModel {
                 break;
             }
         }
-
-        emit UserExited(addr, val);
 
         if (val > 0) {
             (bool success,) = payable(addr).call{value: val}("");
@@ -712,31 +712,44 @@ contract OpenFLModel {
 
         if (registeredWantToLeave == 0) return;
 
+        require(registeredWantToLeave <= totalRegistered, "All users want to leave, call exitModel instead");
+
         uint remaining = totalRegistered - registeredWantToLeave;
 
-        if (remaining <= 1) {
+        if (remaining == 0) {
             // Too few users would remain — distribute rewardLeft to all and exit everyone
-            if (rewardLeft > 0 && totalRegistered > 0) {
-                uint share = rewardLeft / totalRegistered;
+            if (rewardLeft > 0 && registeredWantToLeave > 0) {
+                uint share = rewardLeft / registeredWantToLeave;
                 rewardLeft = 0;
                 for (uint i = 0; i < participants.length; i++) {
-                    address addr = participants[i];
-                    if (addr != address(0) && users[addr].isRegistered) {
-                        users[addr].globalReputationScore += share;
+                    User storage user = users[participants[i]];
+                    if (user.isRegistered && wantsToLeave[user.addr]) {
+                        user.globalReputationScore += share;
+                        _exitModel(user.addr);
                     }
                 }
             }
-            for (uint i = 0; i < participants.length; i++) {
-                address addr = participants[i];
-                if (addr != address(0) && users[addr].isRegistered) {
-                    _exitModel(addr);
+        } else if (remaining == 1) {
+            if (rewardLeft > 0 && registeredWantToLeave > 0) {
+                uint share = rewardLeft;
+                rewardLeft = 0;
+                for (uint i = 0; i < participants.length; i++) {
+                    User storage user = users[participants[i]];
+                    if (user.isRegistered) {
+                        if (wantsToLeave[user.addr]) {
+                            _exitModel(user.addr);
+                        } else {
+                            user.globalReputationScore += share;
+                            _exitModel(user.addr);
+                        }
+                    }
                 }
             }
         } else {
             for (uint i = 0; i < participants.length; i++) {
-                address addr = participants[i];
-                if (addr != address(0) && users[addr].isRegistered && wantsToLeave[addr]) {
-                    _exitModel(addr);
+                User storage user = users[participants[i]];
+                if (user.isRegistered && wantsToLeave[user.addr]) {
+                    _exitModel(user.addr);
                 }
             }
         }

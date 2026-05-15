@@ -612,27 +612,6 @@ class FLChallenge(ConnectionHelper):
             logging.log_receipt(self, receipt, "exit")
         printer._print("-----------------------------------------------------------------------------------\n")
 
-    def exit_user(self, user):
-        if self.fork:
-            tx = super().build_tx(user.address, self.modelAddress, 0)
-            txHash = self.model.functions.exitModel().transact(tx)
-        else:
-            w3 = ConnectionHelper.get_w3()
-            nonce = w3.eth.get_transaction_count(user.address)
-            ex = super().build_non_fork_tx(user.address, nonce)
-            ex = self.model.functions.exitModel().build_transaction(ex)
-            signed = w3.eth.account.sign_transaction(ex, private_key=user.privateKey)
-            txHash = w3.eth.send_raw_transaction(signed.raw_transaction)
-        print("{:<17}   {} | {} | {:>27,.0f} GRS".format("User left:       ",
-                                                         user.address[0:16] + "...",
-                                                         txHash.hex()[0:6] + "...",
-                                                         user._globalrep[-1]
-                                                         ))
-        receipt = self.w3.eth.wait_for_transaction_receipt(txHash, timeout=600, poll_latency=1)
-        self.gas_exit.append(receipt["gasUsed"])
-        self.txHashes.append(("exit", receipt["transactionHash"].hex(), receipt["gasUsed"]))
-        logging.log_receipt(self, receipt, "exit")
-
     def check_and_exit_losing_users(self):
         current_round = self.model.functions.round().call()
         if current_round < 4:
