@@ -329,7 +329,7 @@ class FLChallenge(ConnectionHelper):
         txs = []
         for user in self.pytorch_model.participants:
             if user.disqualified:
-                break
+                continue
             addrs = []
             votes = []
             user_votes = fbm[user.id]
