@@ -6,7 +6,9 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.multiprocessing as mp
+import os
 import time
+import psutil
 import ml.training as training
 import ml.data as data
 import ml.evaluation as evaluation
