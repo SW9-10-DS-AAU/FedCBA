@@ -275,6 +275,7 @@ class FLChallenge(ConnectionHelper):
             gs = self.get_global_reputation_of_user(acc.address)
             rs = self.get_round_reputation_of_user(acc.address)
             print("{}..: {:>27,.0f}  {:>27,.0f} WEI".format(acc.address[0:7],gs,rs))
+        print()  # New line before
         print_divider("=", blank_line_after=True)
     
             
