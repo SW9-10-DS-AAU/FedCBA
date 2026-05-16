@@ -14,121 +14,197 @@ Master's Thesis by:
 ```
 
 # Getting started
-## 1. Ganache
-- Download Ganache
-- Set up a workspace (Not quickstart)
-- Set gas limit much higher than default, same with balance
-- Set accounts to 8
 
-## 2. Environment Variables
-The project contains a .env file located in the .env folder, but supports easy replacement of this environmnent.
-The project runs with the .env.ganache .env file by default. If another .env is preferred run the program with the 
-``ENV=<env_file_identifier>`` prefix. Providing no ENV prefix and providing ``ENV=ganache`` is therefore equivalent.
+## 1. Clone & Git LFS
 
-In your Environment, you must have the following variables set:
-```
-RPC_URL="<RPC_URL from ganache or sepolia, including port>"
-PRIVATE_KEYS="<Private keys from your accounts colon separated (for non-locally forked blockchain). If you have fork=true (using Ganache), there is no need to set private keys. Then just keep this variable empty>"
+Install Git LFS (required before anything else):
+
+**Linux:**
+``` bash
+sudo apt update 
+sudo apt install git-lfs
 ```
 
-## 3. Requirements
-Install Git LFS (required for dataset files):
-- `git lfs install`
-- `git lfs pull`
+**Windows:** Download and run the installer from https://git-lfs.com
 
-- Only tested with Python3.10
-Create a virtual environment and activate it.
-- Run ``python3 -m venv .venv``
-- Then Run ``source .venv/bin/activate``
+**If you haven't cloned the repository yet:**
 
-Install requirements:
-Only tested with Python3.10
-- Run ``pip install -e ".[dev]"``
+Then initialize Git LFS:
+``` bash
+git lfs install
+git clone <repo-url>
+```
+**If you have already cloned the repo**, pull LFS files manually:
+``` bash
+git lfs install
+git lfs pull
+```
 
-Build the abi and bytecode files from the smart contracts
-``python3 scripts/compile_contracts.py``
+## 2. Ganache
 
-Strip notebook outputs before committing (run once per clone):
-``nbstripout --install``
+- Download and install [Ganache](https://trufflesuite.com/ganache/)
+- Create a new **workspace** (not Quickstart)
+- Under **Server**, set the port to `7545`
+- Under **Accounts & Keys**, set the number of accounts to `10`
+- Under **Chain**, set the gas limit to a high value (e.g. `4000000000`), increase the default account balance to a higher amount (e.g. `10000000000`), and decrease the gas price (e.g. `200`)
 
-Install ROCM(AMD) or CUDA(NVIDIA):
-ROCM:
-``pip3 install torch torchvision --index-url https://download.pytorch.org/whl/rocm7.1``
-CUDA:
-``pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu130``
+## 3. Python Environment & Dependencies
+
+Only tested with **Python 3.10**.
+
+Create and activate a virtual environment:
+
+**Linux:**
+``` bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+**Windows:**
+``` bash
+python -m venv .venv
+.venv\Scripts\activate
+```
+
+Install the project and its dependencies:
+``` bash
+pip install -e ".[dev]"
+```
+
+**Strip notebook outputs before committing (run once per clone):**
+``` bash
+nbstripout --install
+```
+
+### Install a GPU backend — pick the one matching your hardware:
+
+ROCM (AMD):
+``` bash
+pip install torch torchvision --index-url https://download.pytorch.org/whl/rocm7.1
+```
+CUDA (NVIDIA):
+``` bash
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
+```
+
+## 4. Environment Variables
+
+The project reads its configuration from `.env/<file>`. By default it uses `.env/.env.ganache`, which shall be configured for a standard local Ganache workspace (port 7545).
 
 
-## 4. Running an Experiment
+If another .env is preferred, run the program with the `ENV=<env_file_identifier>` prefix: 
+```
+ENV=ganache python ./experiment/experiments.py   # same as the default
+ENV=sepolia python ./experiment/experiments.py   # example for a different network
+```
+Providing no ENV prefix and providing ENV=ganache is equivalent.
 
-Two modes are availble for running an experiment: sample or experiment.
+
+If you are connecting to a non-local blockchain (e.g. Sepolia), set these variables in your `.env` file:
+```
+RPC_URL="<RPC URL including port>"
+PRIVATE_KEYS="<colon-separated private keys for your accounts>"
+```
+For Ganache (`fork=true`), `PRIVATE_KEYS` can be left empty.
+
+## 5. Compile Smart Contracts
+
+Build the ABI and bytecode files from the Solidity contracts:
+
+**Linux:**
+``` bash
+python3 scripts/compile_contracts.py
+```
+
+**Windows:**
+``` bash
+python scripts/compile_contracts.py
+```
+
+## 6. Running an Experiment
+
+Two modes are available:
+
 ### Sample
-Just want to see a quick demo of the code? Run the sample.py file with:
-`python ./experiment/sample.py`
+Quick demo of the full pipeline:
+``` bash
+python3 ./experiment/sample.py
+```
 
 ### Experiment
-Want to run a systematic experiment with different parameters?
+Runs a systematic experiment across a parameter grid. 
 
-The Experiment folder contains files for running experiments on different datasets.
-To change the experiment setup, modify the experiment_configuration.py file.
-To change the dataset, modify the experiments.py file.
+To change the parameter sweep, edit `experiment/experiment_presets.py`. 
 
-The file experiments.py runs one such experiment and can be run with:
+To run an experiment within the project, run the following command:
+``` bash
+python3 ./experiment/experiments.py
+```
+To change the dataset, edit `experiment/experiments.py`.
+```
+DATASETFAST = MNIST
+DATASETSLOW = CIFAR.10
+```
 
-`python ./experiment/experiments.py`
+## 7. Solidity Testing
 
-Or if you want to specify a different .env file, run with the ENV prefix as described in the Environment Variables section:
-``ENV=ganache python ./experiment/experiments.py``
+All forge commands must be run from the `foundry` directory.
 
+Install Foundry (requires a Unix-like shell — WSL on Windows):
+``` bash
+curl -L https://foundry.paradigm.xyz | bash && source ~/.bashrc
+foundryup
+cd foundry && forge soldeer install
+```
 
-## 5. Solidity testing
-- All forge commands must be run in the foundry directory.
-- Download Foundry in a Unix-like shell (WSL or Linux): 
-  - `curl -L https://foundry.paradigm.xyz | bash && source ~/.bashrc`
-  - `foundryup`
-  - `cd foundry && forge soldeer install`
-  
-- To Test:
-  - `cd foundry`
-  - `forge build` 
-  - `forge test`
+Build and test:
+``` bash
+cd foundry
+forge build
+forge test
+```
 
-# 6. Running Tests
+## 8. Running Python Tests
 
 Tests are run with pytest from the repo root:
-```
+``` bash
 pytest
 ```
 
-By default, tests marked as `slow` are skipped. These are tests that load full datasets (e.g. CIFAR-10)
-and can take significant time. To include them:
-```
+By default, tests marked as `slow` are skipped. These load full datasets (e.g. CIFAR-10) and can take significant time. To include them:
+``` bash
 pytest -m slow
 ```
 
 To run only the slow tests:
-```
+``` bash
 pytest -m slow --no-header -q
 ```
 
 Solidity tests (forge) run automatically as part of the pytest suite on Linux/WSL.
 On Windows they are skipped — run them manually in WSL:
-```
+``` bash
 cd foundry && forge test
 ```
 
-# 7. Test Coverage
+## 9. Test Coverage
 
-To get test coverage for python code, run the following command: \
-`pytest --cov tests/`
+Python:
+``` bash
+pytest --cov tests/
+```
 
-To get test coverage for solidity code, run the following command: \
-`forge coverage`
+Solidity:
+``` bash
+forge coverage
+```
 
-(Optional) Output to a file
-`forge coverage --report lcov`
+Output to a file (optional):
+``` bash
+forge coverage --report lcov
+```
 
+## 10. Solidity Compiler (ARM)
 
-# 8. Solidity Compiler (Arm)
-If running on arm cpu, you need to download a recompiled solidity (solc) compiler for arm 
-and place it in the directory ```~/.local/bin/solc```
-The files can be found here: https://github.com/0xidm/solc-bin
+If running on an ARM CPU, download a recompiled `solc` binary and place it at `~/.local/bin/solc`.
+Binaries are available at: https://github.com/0xidm/solc-bin
