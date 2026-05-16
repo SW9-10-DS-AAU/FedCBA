@@ -68,7 +68,7 @@ PRESETS = {
         epochs=1,
         batch_size=32,
         use_outlier_detection=[True],
-        contribution_score_strategy=["dotproduct"],
+        contribution_score_strategy=["loss_only"],
         freerider_noise_scale=[0],
         freerider_start_round=[2],
         freerider_attack_type=["delta_weight"],
@@ -76,9 +76,9 @@ PRESETS = {
         malicious_start_round=[2],
         malicious_attack_type=["byzantine"],
         aggregation_rule=["binary_switch[positives_only,FedAVG]"],
-        data_distribution=["dirichlet_split"],
-        dirichlet_alpha=[0.5],
-        number_of_runs=3
+        data_distribution=["random_split"],
+        dirichlet_alpha=None,
+        number_of_runs=1
     ),
 
     "mnist_openfl_w_outlier": ExperimentPreset(
