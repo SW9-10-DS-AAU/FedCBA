@@ -25,7 +25,7 @@ from experiment.experiment_configuration import ExperimentConfiguration
 from experiment.experiment_presets import PRESETS
 from utils.async_writer import AsyncWriter
 from selector import choose_from_list
-from analysis.ExperimentLogger import ExperimentLogger
+from analysis import ExperimentLogger
 
 DATA_ROOT = REPO_ROOT / "data"
 DATASETSLOW = "cifar.10"
