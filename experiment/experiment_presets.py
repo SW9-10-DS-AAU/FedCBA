@@ -81,28 +81,7 @@ PRESETS = {
         number_of_runs=3
     ),
 
-    "mnist_openfl_low_noise": ExperimentPreset(
-        number_of_good_contributors=4,
-        number_of_bad_contributors=1,
-        number_of_freerider_contributors=1,
-        minimum_rounds=10,
-        epochs=1,
-        batch_size=32,
-        use_outlier_detection=[True],
-        contribution_score_strategy=["loss_only", "accuracy_only", "accuracy_loss", "naive"],
-        freerider_noise_scale=[0.01],
-        freerider_start_round=[1, 3, 5],
-        freerider_attack_type=None,
-        malicious_noise_scale=None,
-        malicious_start_round=None,
-        malicious_attack_type=None,
-        aggregation_rule=["FedAVG"],
-        data_distribution=["random_split"],
-        dirichlet_alpha=None,
-        number_of_runs=10
-    ),
-
-"mnist_openfl_high_noise": ExperimentPreset(
+    "mnist_openfl_w_outlier": ExperimentPreset(
         number_of_good_contributors=4,
         number_of_bad_contributors=1,
         number_of_freerider_contributors=1,
@@ -114,8 +93,8 @@ PRESETS = {
         freerider_noise_scale=[0.1],
         freerider_start_round=[1, 3, 5],
         freerider_attack_type=None,
-        malicious_noise_scale=None,
-        malicious_start_round=None,
+        malicious_noise_scale=[0, 0.01, 0.1, 0.5, 1.0],
+        malicious_start_round=[1, 3, 5],
         malicious_attack_type=None,
         aggregation_rule=["FedAVG"],
         data_distribution=["random_split"],

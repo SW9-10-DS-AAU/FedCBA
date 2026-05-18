@@ -11,7 +11,9 @@ from unittest.mock import MagicMock, patch, call
 from web3.exceptions import ContractLogicError
 from contracts import contribution
 from contracts.fl_challenge import FLChallenge
+from tests.unit.conftest import mock_participants
 from utils.shapley import check_shapley_compliance
+import ml.evaluation as evaluation
 
 from contracts.contribution import (
     calc_contribution_scores_dotproduct,
@@ -346,6 +348,42 @@ class TestCalcContributionScore:
             assert scores == pytest.approx(expected_scores, rel=1e-9), \
                 f"Expected {expected_scores}, got {scores}"
 
+    def test_accuracy_loss_logs_contribution_scores_and_mad_details(self):
+        users = []
+        for i in range(4):
+            user = MagicMock()
+            user.id = i
+            user.address = f"0xAddressUser{i}"
+            user._accuracies = [80 + i]
+            user._losses = [20 - i]
+            users.append(user)
+
+        self.aggregator._logger = MagicMock()
+        self.aggregator.get_all_previous_accuracies_and_losses.return_value = (
+            [80, 81, 82, 83],
+            [20, 19, 18, 17],
+        )
+
+        def mock_get_accuracies_losses(address):
+            user = next(u for u in users if u.address == address)
+            return ([], user._accuracies, user._losses)
+
+        self.aggregator.get_all_accuracies_and_losses_about.side_effect = mock_get_accuracies_losses
+
+        scores = contribution._calculate_scores_accuracy_loss(
+            self.aggregator, users, mad_threshold=1.1
+        )
+
+        self.aggregator._logger.contribution_scores.assert_called_once_with(
+            round=1,
+            user_ids=[0, 1, 2, 3],
+            user_addresses=[u.address for u in users],
+            scores=scores,
+        )
+        mad_calls = self.aggregator._logger.contribution_score_mad.call_args_list
+        assert [call.kwargs["metric"] for call in mad_calls] == ["accuracy", "loss"]
+        assert all(call.kwargs["round"] == 1 for call in mad_calls)
+
 
     @pytest.mark.parametrize("user_accuracies, prev_accuracies, expected_scores", [
         (
@@ -592,7 +630,7 @@ class TestCalcContributionScoresMAD:
             user.model = merged_model
             participants.append(user)
 
-        scores = contribution._calculate_scores_dotproduct(fl_challenge, participants)
+        scores = contribution._calculate_scores_dotproduct(fl_challenge, participants, 1)
 
         expected_scores = calc_contribution_scores_dotproduct(local_updates, global_update)
 
@@ -626,7 +664,7 @@ class TestCalcContributionScoresMAD:
 
         with patch('contracts.contribution.trim_global_update_using_mad', return_value=(filtered_global_update, {})) as mock_trim:
             with patch('contracts.contribution.calc_contribution_scores_dotproduct', return_value=[10, 20, 30]) as mock_math:
-                scores = contribution._calculate_scores_dotproduct(fl_challenge, participants)
+                scores = contribution._calculate_scores_dotproduct(fl_challenge, participants, 1)
 
         assert scores == [10, 20, 30]
 
@@ -663,7 +701,7 @@ class TestCalcContributionScoresMAD:
 
         with patch('contracts.contribution.trim_global_update_using_mad') as mock_trim:
             with patch('contracts.contribution.calc_contribution_scores_dotproduct', return_value=[1, 2, 3]) as mock_math:
-                scores = contribution._calculate_scores_dotproduct(fl_challenge, participants)
+                scores = contribution._calculate_scores_dotproduct(fl_challenge, participants, 1)
 
         assert scores == [1, 2, 3]
         mock_trim.assert_not_called()
@@ -900,6 +938,76 @@ class TestFLChallengeFeatures:
 
         fl_challenge.model.functions.feedback.assert_called_with(target.address, 1)
 
+
+    # Test accuracy matrix and loss matrix for sizing and indexing when removing participant live
+
+    def test_feedback_filtering_skips_self_inactive_disqualified(self, fl_challenge):
+        # Test the indexing with idx by removing or adding users.
+        # Assert equal before, then remove /add, then assert again.
+
+        # Get count of users registered
+        pytorch_model = MagicMock()
+
+        UINT256_MAX = 2 ** 256 - 1
+
+        user1 = MagicMock()
+        user1.address = "0xSomeAddress1"
+        user1.id = 0
+        user1.attitude = "honest"
+
+        user2 = MagicMock()
+        user2.address = "0xSomeAddress2"
+        user2.id = 1
+        user2.attitude = "freerider"
+
+        user3 = MagicMock()
+        user3.address = "0xSomeAddress3"
+        user3.id = 2
+        user3.attitude = "malicious"
+
+        user4 = MagicMock()
+        user4.address = "0xSomeAddress4"
+        user4.id = 3
+        user4.attitude = "inactive"
+
+        users = [user1, user2, user3, user4]
+
+        pytorch_model.disqualified = [user3]
+
+        users_count = len(users)
+
+        # Assuming 5 users
+        am = [[30, 40, 50, 30, 40], [20, 40, 30, 40, 20], [40, 30, 60, 20, 30], [10, 60, 30, 40, 20]]
+        lm = [[300, 400, 500, 300, 400], [400, 600, 200, 400, 500], [300, 500, 300, 400, 600], [600, 300, 500, 400, 500]]
+        fbm = [[0, 1, -1, 1, 0], [1, -1, 0, 1, 0], [-1, -1, 0, 1, 1], [1, 1, -1, 0, 1]]
+
+        for idx, user in enumerate(users):
+            accs = am[idx]
+            losses = lm[idx]
+            filtered_accs = []
+            filtered_losses = []
+            user_votes = fbm[idx]
+
+            for ix, vote in enumerate(user_votes):
+                if user.id == ix: # why this? skips self-evaluation. But will it index correctly?
+                    continue
+                if user.attitude == "inactive":
+                    continue
+                if ix in [i.id for i in pytorch_model.disqualified]:
+                    continue
+                filtered_accs.append(accs[ix])
+                filtered_losses.append(min(UINT256_MAX, losses[ix]))
+
+            #  - user1 (honest, id=0): skip self (ix=0), skip disqualified (ix=2) → 3 ✓
+            #  - user2 (freerider, id=1): skip self (ix=1), skip disqualified (ix=2) → 3 ✓
+            #  - user3 (malicious, id=2): skip self (ix=2) only — ix=2 is skipped by self-check before reaching the disqualified check → 4 ✗
+            #  - user4 (inactive, id=3): continue on every inner iteration → 0 ✗
+
+            expected = {0: 3, 1: 3, 2: 4, 3:0 }
+            assert len(filtered_accs) == expected[user.id]
+
+
+
     # Test feedback giving when a cheater is detected
     def test_give_feedback_cheater_detected(self, fl_challenge):
         """
@@ -951,7 +1059,7 @@ class TestFLChallengeFeatures:
         with patch('contracts.contribution.calc_contribution_scores_dotproduct') as mock_math:
             mock_math.return_value = [1000, 2000, 3000]
 
-            scores = contribution._calculate_scores_dotproduct(fl_challenge, mock_participants)
+            scores = contribution._calculate_scores_dotproduct(fl_challenge, mock_participants, 1)
 
             assert scores == [1000, 2000, 3000]
 
@@ -1090,8 +1198,8 @@ class TestFLChallengeWorkflow:
 
     # Test naive score calculation wrapper
     def test_calculate_scores_naive_helper(self, fl_challenge, mock_participants):
-        scores = contribution._calculate_scores_naive(fl_challenge, mock_participants)
-        expected_val = int((Decimal(1) / Decimal(len(mock_participants))) * Decimal('1e18'))
+        scores = contribution._calculate_scores_naive(fl_challenge, mock_participants,1)
+        expected_val = float((Decimal(1) / Decimal(len(mock_participants))))
         assert scores == [expected_val] * len(mock_participants)
 
     @patch('time.sleep', return_value=None)
@@ -1224,3 +1332,40 @@ class TestReporting:
 
         with patch.object(fl_challenge, 'get_events', return_value=expected_events):
             fl_challenge.print_round_summary(mock_receipt, _current_round_no=1, contributors=5)
+
+
+class TestEvaluatePeers:
+    def test_matrix_sized_by_max_id_not_participant_count(self):
+        """
+        Regression test: after a middle user is disqualified (e.g. ID=1 from a 4-user group),
+        the remaining active users still have IDs 0, 2, 3. The matrix must be 4x4 (max_id+1),
+        not 3x3 (len(participants)). The old bug used n=len(participants), making
+        accuracy_matrix[3] an IndexError for the user with ID=3.
+        """
+        # Simulate: originally 4 users (IDs 0-3), user ID=1 disqualified mid-round
+        active_ids = [0, 2, 3]
+        participants = []
+        for i in active_ids:
+            user = MagicMock()
+            user.id = i
+            user.attitude = "honest"
+            user.userToEvaluate = []
+            participants.append(user)
+
+        disqualified = MagicMock()
+        disqualified.id = 1
+
+        pm = MagicMock()
+        pm.participants = participants
+        pm.disqualified = [disqualified]
+
+        _, accuracy_matrix, loss_matrix, _, _ = evaluation.evaluate_peers(pm)
+
+        # Must be 4×4 (max_id=3 → n=4), not 3×3 (len(participants)=3)
+        assert len(accuracy_matrix) == 4
+        assert len(accuracy_matrix[0]) == 4
+        assert len(loss_matrix) == 4
+
+        # Active user with ID=3 must be accessible — old bug caused IndexError here
+        assert accuracy_matrix[3] == [0, 0, 0, 0]
+        assert loss_matrix[3] == [0, 0, 0, 0]
