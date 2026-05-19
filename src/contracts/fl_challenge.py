@@ -641,16 +641,17 @@ class FLChallenge(ConnectionHelper):
         printer.print_divider("-", blank_line_after=True)
 
 
-    def check_and_exit_losing_users(self, current_round):
+    def check_and_exit_losing_users(self):
+        if self.experiment_config.use_nobody_is_kicked: return
+
         current_round = self.model.functions.round.call()
-        if current_round < 2:
-            return
+        if current_round < 2: return
 
         threshold = int(self.MIN_BUY_IN) // self.PUNISHMENT_FACTOR
 
         for u in self.pytorch_model.participants:
-            if u.attitude != "good":
-                continue
+            if u.attitude != "good": continue
+
 
             grs_current        = self.model.functions.grs(current_round, u.address).call()
             grs_two_rounds_ago = self.model.functions.grs(current_round-2, u.address).call() if current_round != 2 else u._globalrep[0]
@@ -1060,13 +1061,13 @@ class FLChallenge(ConnectionHelper):
                     "GasTransactions": roundTx
                     })
 
-                self.check_and_exit_losing_users(_current_round)
+                self.check_and_exit_losing_users()
                 self._process_exits()
 
                 _current_round = self.pytorch_model.round # Update current round to match with incremented round in close_round()
 
 
-                # TODO: fixing
+                # stop training if we are no longer learning anything.
                 if models_are_equal(self.pytorch_model.previous_global_model, self.pytorch_model.two_previous_global_model) and models_are_equal(self.pytorch_model.two_previous_global_model, self.pytorch_model.three_previous_global_model):
                     logging.log_warning(self, msg=f"Global model has not changed for 3 rounds -- Stopping run", round=_current_round)
                     break

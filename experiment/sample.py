@@ -23,8 +23,8 @@ from analysis import ExperimentLogger
 
 DATA_ROOT = REPO_ROOT / "data"
 
-preset = "test"
-_use_defaults = True
+preset = "p10_MAIN_GRAPHS_comparing_aggregation_rules_mnist"
+_use_defaults = False
 
 
 config = ExperimentConfiguration(preset=preset, use_defaults=_use_defaults)
