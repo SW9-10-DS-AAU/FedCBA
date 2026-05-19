@@ -1331,7 +1331,7 @@ class TestReporting:
         }
 
         with patch.object(fl_challenge, 'get_events', return_value=expected_events):
-            fl_challenge.print_round_summary(mock_receipt, _current_round_no=1, contributors=5)
+            fl_challenge.collect_events_and_print_round_summary(mock_receipt, _current_round_no=1, contributors=5)
 
 
 class TestEvaluatePeers:

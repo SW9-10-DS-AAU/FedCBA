@@ -740,7 +740,7 @@ class FLChallenge(ConnectionHelper):
         return results
 
 
-    def print_round_summary(self, receipt, _current_round_no, contributors):
+    def collect_events_and_print_round_summary(self, receipt, _current_round_no, contributors):
         for user in self.pytorch_model.participants + self.pytorch_model.disqualified:
             user.temporary_grs_evaluation = None
 
@@ -1024,8 +1024,10 @@ class FLChallenge(ConnectionHelper):
                     for msg in warning_collector:
                         logging.log_warning(self, msg, round=_current_round)
 
+
+
                 if receipt is not None:
-                    self.print_round_summary(receipt, _current_round, contributors)
+                    self.collect_events_and_print_round_summary(receipt, _current_round, contributors)
 
                 _round_time = time.perf_counter() - _round_start
 

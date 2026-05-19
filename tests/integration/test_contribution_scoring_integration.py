@@ -89,10 +89,15 @@ def make_accuracy_contract(prev_accs, prev_losses, user_metrics):
 
     functions.getAllAccuraciesLossesAbout = about
 
+    functions.submitPreviousLoss = lambda avg_prev_loss: SimpleNamespace(
+        transact=lambda tx: b"\x00" * 32
+    )
+
     abi = [
         {"name": "getAllPreviousAccuraciesAndLosses", "type": "function"},
         {"name": "getAllAccuraciesLossesAbout", "type": "function"},
-        {"name": "submitContributionScore", "type": "function"}
+        {"name": "submitContributionScore", "type": "function"},
+        {"name": "submitPreviousLoss", "type": "function"},
     ]
 
     return SimpleNamespace(functions=functions, abi=abi, address="0xModelAddress")
