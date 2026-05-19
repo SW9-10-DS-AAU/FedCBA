@@ -665,7 +665,7 @@ contract OpenFLModel {
         user.isRegistered = false;
     }
 
-    function _exitModel(address addr) internal {
+    function _exitUser(address addr) internal {
         User storage user = users[addr];
         if (!user.isRegistered) return; // Do nothing if not registered
 
@@ -695,13 +695,15 @@ contract OpenFLModel {
         }
     }
 
+
     function exitModel() public {
-        _exitModel(msg.sender);
+        _exitUser(msg.sender);
     }
 
+
     function markWantsToLeave() public {
-        require(users[msg.sender].isRegistered, "SNR");
-        require(!wantsToLeave[msg.sender], "ALR");
+        require(users[msg.sender].isRegistered, "sender not registered");
+        require(!wantsToLeave[msg.sender], "already leave registered");
         wantsToLeave[msg.sender] = true;
     }
 
@@ -727,36 +729,36 @@ contract OpenFLModel {
             // Too few users would remain — distribute rewardLeft to all and exit everyone
             if (rewardLeft > 0 && registeredWantToLeave > 0) {
                 uint share = rewardLeft / registeredWantToLeave;
-                rewardLeft = 0;
                 for (uint i = 0; i < participants.length; i++) {
                     User storage user = users[participants[i]];
                     if (user.isRegistered && wantsToLeave[user.addr]) {
                         user.globalReputationScore += share;
-                        _exitModel(user.addr);
+                        _exitUser(user.addr);
                     }
                 }
+                rewardLeft = 0;
             }
         } else if (remaining == 1) {
             if (rewardLeft > 0 && registeredWantToLeave > 0) {
                 uint share = rewardLeft;
-                rewardLeft = 0;
                 for (uint i = 0; i < participants.length; i++) {
                     User storage user = users[participants[i]];
                     if (user.isRegistered) {
                         if (wantsToLeave[user.addr]) {
-                            _exitModel(user.addr);
+                            _exitUser(user.addr);
                         } else {
                             user.globalReputationScore += share;
-                            _exitModel(user.addr);
+                            _exitUser(user.addr);
                         }
                     }
                 }
+                rewardLeft = 0;
             }
         } else {
             for (uint i = 0; i < participants.length; i++) {
                 User storage user = users[participants[i]];
                 if (user.isRegistered && wantsToLeave[user.addr]) {
-                    _exitModel(user.addr);
+                    _exitUser(user.addr);
                 }
             }
         }

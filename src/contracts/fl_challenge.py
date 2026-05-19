@@ -644,28 +644,28 @@ class FLChallenge(ConnectionHelper):
         printer._print("-----------------------------------------------------------------------------------\n")
 
 
-    def check_and_exit_losing_users(self):
-        current_round = self.model.functions.round().call() - 1
+    def check_and_exit_losing_users(self, current_round):
         if current_round < 2:
             return
 
         threshold = int(self.MIN_BUY_IN) // self.PUNISHMENT_FACTOR
 
-        to_exit = []
         for u in self.pytorch_model.participants:
             if u.attitude != "good":
                 continue
+
             grs_current        = self.model.functions.grs(current_round, u.address).call()
+            grs_one_rounds_ago = self.model.functions.grs(current_round-1, u.address).call()
             grs_two_rounds_ago = self.model.functions.grs(current_round-2, u.address).call() if current_round != 2 else u._globalrep[0]
+
             if grs_two_rounds_ago - grs_current > threshold:
-                to_exit.append(u)
+                print(b(f"User {u.address[0:16]}... lost more than {threshold} GRS over 2 rounds — signalling leave."))
+                self._mark_wants_to_leave(u)
+
             #TODO: remove after reviewing
             print("current grs: ", grs_current)
+            print("grs one round ago: ", grs_one_rounds_ago)
             print("grs two rounds ago: ", grs_two_rounds_ago)
-
-        for user in to_exit:
-            print(b(f"User {user.address[0:16]}... lost more than {threshold} GRS over 2 rounds — signalling leave."))
-            self._mark_wants_to_leave(user)
 
 
     def _mark_wants_to_leave(self, user):
@@ -685,18 +685,20 @@ class FLChallenge(ConnectionHelper):
 
 
     def _process_exits(self):
-        coordinator = self.pytorch_model.participants[0]
         if self.fork:
-            tx = super().build_tx(coordinator.address, self.modelAddress, 0)
+            tx = super().build_tx(self.w3.eth.default_account, self.modelAddress, 0)
             txHash = self.model.functions.processExits().transact(tx)
         else:
             w3 = ConnectionHelper.get_w3()
-            nonce = w3.eth.get_transaction_count(coordinator.address)
-            tx = super().build_non_fork_tx(coordinator.address, nonce)
+            nonce = w3.eth.get_transaction_count(self.w3.eth.default_account)
+            tx = super().build_non_fork_tx(self.w3.eth.default_account, nonce)
             tx = self.model.functions.processExits().build_transaction(tx)
-            signed = w3.eth.account.sign_transaction(tx, private_key=coordinator.privateKey)
+            signed = w3.eth.account.sign_transaction(tx, private_key=self.pytorch_model.participants[0].privateKey)
             txHash = w3.eth.send_raw_transaction(signed.raw_transaction)
+
         receipt = self.w3.eth.wait_for_transaction_receipt(txHash, timeout=600, poll_latency=1)
+
+
         self.gas_exit.append(receipt["gasUsed"])
         self.txHashes.append(("processExits", receipt["transactionHash"].hex(), receipt["gasUsed"]))
         logging.log_receipt(self, receipt, "processExits")
@@ -1001,15 +1003,12 @@ class FLChallenge(ConnectionHelper):
 
                 # A roundRep of 0, does not nec. mean mal.
                 contributors = [user for user in self.pytorch_model.participants if user._roundrep[-1] >= 0] # Keeps track of who will be merged in the_merge()
-                if len(contributors) == 0: # If all are negative, we merge everyone and let the contribution score calculation sort them out.
-                    contributors = self.make_everyone_contributors()
-                elif len(self.pytorch_model.participants) == 2:
+                if len(contributors) == 0 or len(self.pytorch_model.participants) == 2: # If all are negative, we merge everyone and let the contribution score calculation sort them out. Same if there are only two participants
                     contributors = self.make_everyone_contributors()
 
                 users_weight_collector = {}
                 agg_switch_collector = {}
                 warning_collector = []
-
 
                 # Ordering of the merge. If dotproduct we merge before contribution score
                 if self.experiment_config.contribution_score_strategy == "dotproduct":
@@ -1067,7 +1066,7 @@ class FLChallenge(ConnectionHelper):
                     "GasTransactions": roundTx
                     })
 
-                self.check_and_exit_losing_users()
+                self.check_and_exit_losing_users(_current_round)
                 self._process_exits()
 
                 _current_round = self.pytorch_model.round # Update current round to match with incremented round in close_round()
