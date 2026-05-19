@@ -163,6 +163,8 @@ def the_merge(pm, _current_round_no, _users, aggregation_rule: str, merge_weight
 
 def models_are_equal(sd_a, sd_b):
     # Changed from model objects to state_dict snapshots, so compare mapping keys/tensors directly.
+    if sd_a is None or sd_b is None:
+        return False
     if sd_a.keys() != sd_b.keys():
         return False
     return all(torch.equal(sd_a[k], sd_b[k]) for k in sd_a)
@@ -193,7 +195,7 @@ def invoke_partial_switch(pm, users_contrib_scores, switch_type: str, func1: Cal
 
 
 def binary_switch(pm, users_contrib_scores, func_1, func_2, agg_switch_collector, _current_round_no):
-    if not pm.has_switched and _current_round_no > 1 and pm.two_previous_global_model is not None: # Here pm.round has incremented so at least 0+1.
+    if not pm.has_switched and _current_round_no > 1: # Here pm.round has incremented so at least 0+1.
         if models_are_equal(pm.previous_global_model, pm.two_previous_global_model):
             pm.has_switched = True
             print(
