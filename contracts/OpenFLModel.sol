@@ -632,6 +632,8 @@ contract OpenFLModel {
 
     // Reset variables
     function roundReset() internal {
+        round += 1;
+
         for (uint i = 0; i < participants.length; i++) {
             User storage user = users[participants[i]];
             if (user.isRegistered && !user.isDisqualified) {
@@ -644,8 +646,6 @@ contract OpenFLModel {
                 }
             }
         }
-
-        round += 1;
         votesPerRound = 0;
         nrOfProvidedHashedWeights = 0;
         delete punishedAddresses;
