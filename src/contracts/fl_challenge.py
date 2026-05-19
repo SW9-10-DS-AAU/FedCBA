@@ -645,6 +645,7 @@ class FLChallenge(ConnectionHelper):
 
 
     def check_and_exit_losing_users(self, current_round):
+        current_round = self.model.functions.round().call() - 1
         if current_round < 2:
             return
 
