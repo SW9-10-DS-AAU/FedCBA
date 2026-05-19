@@ -645,8 +645,8 @@ class FLChallenge(ConnectionHelper):
 
 
     def check_and_exit_losing_users(self):
-        current_round = self.model.functions.round().call()
-        if current_round < 4:
+        current_round = self.model.functions.round().call() - 1
+        if current_round < 2:
             return
 
         threshold = self.MIN_BUY_IN // self.PUNISHMENT_FACTOR
@@ -655,10 +655,13 @@ class FLChallenge(ConnectionHelper):
         for u in self.pytorch_model.participants:
             if u.attitude != "good":
                 continue
-            grs_current        = self.get_prior_grs_of_user(u.address, 1)
-            grs_two_rounds_ago = self.get_prior_grs_of_user(u.address, 3)
+            grs_current        = self.model.functions.grs(current_round, u.address).call()
+            grs_two_rounds_ago = self.model.functions.grs(current_round-2, u.address).call() if current_round != 2 else u._globalrep[0]
             if grs_two_rounds_ago - grs_current > threshold:
                 to_exit.append(u)
+            #TODO: remove after reviewing
+            print("current grs: ", grs_current)
+            print("grs two rounds ago: ", grs_two_rounds_ago)
 
         for user in to_exit:
             print(b(f"User {user.address[0:16]}... lost more than {threshold} GRS over 2 rounds — signalling leave."))
