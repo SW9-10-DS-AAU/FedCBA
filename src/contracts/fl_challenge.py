@@ -649,7 +649,7 @@ class FLChallenge(ConnectionHelper):
         if current_round < 2:
             return
 
-        threshold = self.MIN_BUY_IN // self.PUNISHMENT_FACTOR
+        threshold = int(self.MIN_BUY_IN) // self.PUNISHMENT_FACTOR
 
         to_exit = []
         for u in self.pytorch_model.participants:
