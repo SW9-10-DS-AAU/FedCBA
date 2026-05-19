@@ -66,6 +66,7 @@ contract OpenFLModel {
     mapping(uint8 => mapping(address => bool)) public hasSubmittedContributionScore; // round => user => has submitted contribution score
     mapping(uint8 => uint16) public nrOfContributionScores; // round => number of submissions
     mapping(uint8 => uint16) public nrOfEvaluationScores; // round => number of submissions
+    mapping(address => bool) public wantsToLeave;
     mapping(uint8 => uint16) public agreedPreviousLoss; // round => agreed previous loss for that round.
 
     struct AccuracyLossSubmission {
@@ -87,6 +88,7 @@ contract OpenFLModel {
 
     mapping(uint8 => mapping(address => uint16)) public prev_accs;
     mapping(uint8 => mapping(address => uint16)) public prev_losses;
+    mapping(uint8 => mapping(address => uint)) public grs;
 
     // Mapping from sender to all their submissions
     mapping(uint16 => mapping(address => AccuracyLossSubmission[]))
@@ -198,6 +200,7 @@ contract OpenFLModel {
     event Reward                (address user, int256 roundScore, uint win, uint newReputation);
     event ContributionPunishment(address user, int256 roundScore, uint loss, uint newReputation);
     event EvaluationVotingReward(address user, uint rewarded, uint staked, uint newReputation);
+    event UserExited            (address indexed user, uint grs);
 
     constructor(
         bytes32 _modelHash,
@@ -374,7 +377,7 @@ contract OpenFLModel {
         return true;
     }
 
-    function makeRoundReputationsPositive () public {
+    function makeRoundReputationsPositive() public {
         for (uint i = 0; i < participants.length; i++) {
             User storage user = users[participants[i]];
             if (user.isRegistered && !user.isDisqualified) {
@@ -388,6 +391,7 @@ contract OpenFLModel {
         uint mergedUsers = 0;
         for (uint i = 0; i < participants.length; i++) {
             if (
+                users[participants[i]].isRegistered &&
                 users[participants[i]].roundReputation >= 0 &&
                 !users[participants[i]].isDisqualified
             ) {
@@ -628,9 +632,12 @@ contract OpenFLModel {
 
     // Reset variables
     function roundReset() internal {
+        round += 1;
+
         for (uint i = 0; i < participants.length; i++) {
             User storage user = users[participants[i]];
             if (user.isRegistered && !user.isDisqualified) {
+                grs[round][user.addr] = user.globalReputationScore;
                 user.nrOfVotesFromUser = 0;
                 user.roundReputation = 0;
                 user.nrOfRoundsParticipated += 1;
@@ -639,8 +646,6 @@ contract OpenFLModel {
                 }
             }
         }
-
-        round += 1;
         votesPerRound = 0;
         nrOfProvidedHashedWeights = 0;
         delete punishedAddresses;
@@ -660,33 +665,102 @@ contract OpenFLModel {
         user.isRegistered = false;
     }
 
-    // Exit contract - Not safe, gaurds exists but will crash the contract if not met, exits should be queued?
-    function exitModel() public {
-        User storage user = users[msg.sender];
-        if (!user.isRegistered) {
-            return; // Do nothing if not registered
-        }
+    function _exitUser(address addr) internal {
+        User storage user = users[addr];
+        if (!user.isRegistered) return; // Do nothing if not registered
 
         uint val = user.globalReputationScore;
         if (address(this).balance < val) {
             val = address(this).balance;
         }
-//    require(address(this).balance >= val, "Insufficient contract balance");
+
+        emit UserExited(addr, user.globalReputationScore);
+
         user.globalReputationScore = 0;
         user.isRegistered = false;
         nrOfActiveParticipants -= 1;
+        wantsToLeave[addr] = false;
 
         // Clean up participant array
         for (uint i = 0; i < participants.length; i++) {
-            if (participants[i] == msg.sender) {
+            if (participants[i] == addr) {
                 participants[i] = address(0);
                 break;
             }
         }
 
         if (val > 0) {
-            (bool success,) = payable(msg.sender).call{value: val}("");
+            (bool success,) = payable(addr).call{value: val}("");
             require(success, "Transfer failed");
+        }
+    }
+
+
+    function exitModel() public {
+        _exitUser(msg.sender);
+    }
+
+
+    function markWantsToLeave() public {
+        require(users[msg.sender].isRegistered, "sender not registered");
+        require(!wantsToLeave[msg.sender], "already leave registered");
+        wantsToLeave[msg.sender] = true;
+    }
+
+    function processExits() public {
+        uint registeredWantToLeave = 0;
+        uint totalRegistered = 0;
+
+        for (uint i = 0; i < participants.length; i++) {
+            address addr = participants[i];
+            if (addr != address(0) && users[addr].isRegistered) {
+                totalRegistered++;
+                if (wantsToLeave[addr]) registeredWantToLeave++;
+            }
+        }
+
+        if (registeredWantToLeave == 0) return;
+
+        require(registeredWantToLeave <= totalRegistered, "All users want to leave, call exitModel instead");
+
+        uint remaining = totalRegistered - registeredWantToLeave;
+
+        if (remaining == 0) {
+            // Too few users would remain — distribute rewardLeft to all and exit everyone
+            if (rewardLeft > 0 && registeredWantToLeave > 0) {
+                uint share = rewardLeft / registeredWantToLeave;
+                for (uint i = 0; i < participants.length; i++) {
+                    User storage user = users[participants[i]];
+                    if (user.isRegistered && wantsToLeave[user.addr]) {
+                        user.globalReputationScore += share;
+                        _exitUser(user.addr);
+                    }
+                }
+                rewardLeft = 0;
+            }
+        } else if (remaining == 1) {
+            if (rewardLeft > 0 && registeredWantToLeave > 0) {
+                uint share = rewardLeft;
+                for (uint i = 0; i < participants.length; i++) {
+                    User storage user = users[participants[i]];
+                    if (user.isRegistered) {
+                        if (wantsToLeave[user.addr]) {
+                            _exitUser(user.addr);
+                        } else {
+                            user.globalReputationScore += share;
+                            _exitUser(user.addr);
+                        }
+                    }
+                }
+                rewardLeft = 0;
+            }
+        } else {
+            for (uint i = 0; i < participants.length; i++) {
+                User storage user = users[participants[i]];
+                if (user.isRegistered && wantsToLeave[user.addr]) {
+                    _exitUser(user.addr);
+                }
+            }
         }
     }
 
@@ -862,7 +936,6 @@ contract OpenFLModel {
     function submitPreviousLoss(uint16 previousLoss) external {
         agreedPreviousLoss[round] = previousLoss;
     }
-
 
     function getAllPreviousAccuraciesAndLosses() // this is the newest values we have about accuracy/loss. Essentially the "current" values, but we call them previous, because they are from the perspective of the next round
     external

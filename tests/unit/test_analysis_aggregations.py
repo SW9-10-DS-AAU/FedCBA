@@ -211,7 +211,7 @@ class TestGrsByUser:
         pass  # imported at top
         single = make_users(["exp-A"])
         result = agg.grs_by_user(single)
-        assert set(result.columns) >= {"grs", "user_id", "role", "round"}
+        assert set(result.columns) >= {"grs", "user_id", "role", "round", "state"}
 
     def test_multi_experiment_raises(self, two_exp_users):
         with pytest.raises(ValueError, match="single-experiment"):

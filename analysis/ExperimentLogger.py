@@ -21,6 +21,7 @@ class ExperimentLogger:
         self._punishment_rows = []
         self._eval_reward_rows = []
         self._eval_vote_rows = []
+        self._exit_rows = []
 
     # -------- GLOBAL ROUND --------
 
@@ -200,6 +201,17 @@ class ExperimentLogger:
             "gas_used": gas_used,
         })
 
+    # -------- USER EXIT --------
+
+    def exit(self, round=None, user_id=None, user_address=None, grs_paid_out=None):
+        self._exit_rows.append({
+            "experiment_id": self.experiment_id,
+            "round":         round,
+            "user_id":       user_id,
+            "user_address":  user_address,
+            "grs_paid_out":  grs_paid_out,
+        })
+
     # -------- RUNTIME WARNINGS --------
 
     def warning(self, round=None, message=None, user_id=None, user_address=None):
@@ -235,6 +247,7 @@ class ExperimentLogger:
             "punishments":         pd.DataFrame(self._punishment_rows),
             "evaluation_rewards":  pd.DataFrame(self._eval_reward_rows),
             "evaluation_votes":    pd.DataFrame(self._eval_vote_rows),
+            "exits":               pd.DataFrame(self._exit_rows),
         }
 
     # -------- SAVE --------
@@ -263,6 +276,7 @@ class NullExperimentLogger:
     def evaluation_voting_reward(self, round=None, user_id=None, user_address=None, staked=None, rewarded=None, new_reputation=None): pass
     def evaluation_vote(self, round=None, evaluated_user_id=None, evaluated_user_address=None, voter_user_id=None, voter_user_address=None, loss_vote=None, avg_loss_true_value=None, softmax_reward=None): pass
     def receipt(self, round=None, tx_type=None, tx_hash=None, gas_used=None): pass
+    def exit(self, round=None, user_id=None, user_address=None, grs_paid_out=None): pass
     def warning(self, round=None, message=None): pass
     def setup(self, total_experiment_time=None, hardware=None, config=None): pass
     def finalize(self): pass

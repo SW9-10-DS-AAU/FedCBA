@@ -61,7 +61,7 @@ class FLChallenge(ConnectionHelper):
         print("Contract address:", self.model.address)
         print("Contract ABI functions:", [f["name"] for f in self.model.abi if f["type"] == "function"])
 
-        
+
     def register_all_users(self): # pragma: no cover
         """
         Register all participants in the federated learning model
@@ -85,19 +85,19 @@ class FLChallenge(ConnectionHelper):
             txs.append(txHash)
             bal = self.w3.eth.get_balance(self.w3.eth.default_account)
             acc.isRegistered = True
-            print("{:<17} {} | {} | {:>25,.0f} WEI".format("Account registered:", 
-                                                           acc.address[0:16] + "...", 
-                                                           txHash.hex()[0:6] + "...", 
+            print("{:<17} {} | {} | {:>25,.0f} WEI".format("Account registered:",
+                                                           acc.address[0:16] + "...",
+                                                           txHash.hex()[0:6] + "...",
                                                            acc.collateral
                                                            ))
-        
+
         l = len(txs)
         for i, txHash in enumerate(txs):
             printer.print_bar(i, l)
             receipt = self.w3.eth.wait_for_transaction_receipt(txHash,
                                                             timeout=600, 
                                                             poll_latency=1)
-            
+
             self.gas_register.append(receipt["gasUsed"])
             self.txHashes.append(("register",receipt["transactionHash"].hex(), receipt["gasUsed"]))
             logging.log_receipt(self, receipt, "register", round=0)
@@ -196,8 +196,8 @@ class FLChallenge(ConnectionHelper):
         txs = []
         for acc in self.pytorch_model.participants:
             if acc.attitude == "inactive":
-                print("{:<17}   {} | {} | {:>25,.0f} WEI".format("Account inactive:", 
-                                                                         acc.address[0:16] + "...", 
+                print("{:<17}   {} | {} | {:>25,.0f} WEI".format("Account inactive:",
+                                                                         acc.address[0:16] + "...",
                                                                          "   ...   ",
                                                                          self.get_global_reputation_of_user(acc.address)
                                                                          ))
@@ -206,8 +206,8 @@ class FLChallenge(ConnectionHelper):
                 tx = super().build_tx(acc.address, self.modelAddress, 0)
                 txHash = self.model.functions.provideHashedWeights(acc.hashedModel, acc.secret).transact(tx)
 
-            else:          
-                nonce = self.w3.eth.get_transaction_count(acc.address) 
+            else:
+                nonce = self.w3.eth.get_transaction_count(acc.address)
                 hw = super().build_non_fork_tx(acc.address, nonce)
                 hw =  self.model.functions.provideHashedWeights(acc.hashedModel, acc.secret).build_transaction(hw)
                 signed = self.w3.eth.account.sign_transaction(hw, private_key=acc.privateKey)
@@ -222,15 +222,15 @@ class FLChallenge(ConnectionHelper):
         for i, txHash in enumerate(txs):
             printer.print_bar(i, l)
             receipt = self.w3.eth.wait_for_transaction_receipt(txHash,
-                                                            timeout=600, 
+                                                            timeout=600,
                                                             poll_latency=1)
-            
+
             self.gas_weights.append(receipt["gasUsed"])
             self.txHashes.append(("weights", receipt["transactionHash"].hex(), receipt["gasUsed"]))
             logging.log_receipt(self, receipt, "weights")
         # printer._print("-----------------------------------------------------------------------------------\n")
 
-             
+
     def give_feedback(self, feedbackGiver, target, score): # pragma: no cover
         """
         Send a feedback transaction from feedbackGiver to target with given score:
@@ -248,7 +248,7 @@ class FLChallenge(ConnectionHelper):
         try:
             if self.fork:
                 txHash = self.model.functions.feedback(target.address, score).transact(tx)
-            else:          
+            else:
                 nonce = self.w3.eth.get_transaction_count(feedbackGiver.address)
                 fe = super().build_non_fork_tx(feedbackGiver.address, nonce)
                 fe =  self.model.functions.feedback(target.address, score).build_transaction(fe)
@@ -263,7 +263,7 @@ class FLChallenge(ConnectionHelper):
             else:
                 print(rb("Encountered error at feedback function"))
                 raise e
-                
+
         assert(txHash != None)
         
         if score == 1:
@@ -637,7 +637,79 @@ class FLChallenge(ConnectionHelper):
             self.gas_exit.append(receipt["gasUsed"])
             self.txHashes.append(("exit", receipt["transactionHash"].hex(), receipt["gasUsed"]))
             logging.log_receipt(self, receipt, "exit")
-        printer._print("-----------------------------------------------------------------------------------\n")
+        printer.print_divider("-", blank_line_after=True)
+
+
+    def check_and_exit_losing_users(self, current_round):
+        current_round = self.model.functions.round.call()
+        if current_round < 2:
+            return
+
+        threshold = int(self.MIN_BUY_IN) // self.PUNISHMENT_FACTOR
+
+        for u in self.pytorch_model.participants:
+            if u.attitude != "good":
+                continue
+
+            grs_current        = self.model.functions.grs(current_round, u.address).call()
+            grs_two_rounds_ago = self.model.functions.grs(current_round-2, u.address).call() if current_round != 2 else u._globalrep[0]
+
+            if grs_two_rounds_ago - grs_current > threshold:
+                print(b(f"User {u.address[0:16]}... lost more than {threshold} GRS over 2 rounds — signalling leave."))
+                self._mark_wants_to_leave(u)
+
+
+    def _mark_wants_to_leave(self, user):
+        if self.fork:
+            tx = super().build_tx(user.address, self.modelAddress, 0)
+            txHash = self.model.functions.markWantsToLeave().transact(tx)
+        else:
+            w3 = ConnectionHelper.get_w3()
+            nonce = w3.eth.get_transaction_count(user.address)
+            tx = super().build_non_fork_tx(user.address, nonce)
+            tx = self.model.functions.markWantsToLeave().build_transaction(tx)
+            signed = w3.eth.account.sign_transaction(tx, private_key=user.privateKey)
+            txHash = w3.eth.send_raw_transaction(signed.raw_transaction)
+        receipt = self.w3.eth.wait_for_transaction_receipt(txHash, timeout=600, poll_latency=1)
+        self.txHashes.append(("markLeave", receipt["transactionHash"].hex(), receipt["gasUsed"]))
+        logging.log_receipt(self, receipt, "markLeave")
+
+
+    def _process_exits(self):
+        if self.fork:
+            tx = super().build_tx(self.w3.eth.default_account, self.modelAddress, 0)
+            txHash = self.model.functions.processExits().transact(tx)
+        else:
+            w3 = ConnectionHelper.get_w3()
+            nonce = w3.eth.get_transaction_count(self.w3.eth.default_account)
+            tx = super().build_non_fork_tx(self.w3.eth.default_account, nonce)
+            tx = self.model.functions.processExits().build_transaction(tx)
+            signed = w3.eth.account.sign_transaction(tx, private_key=self.pytorch_model.participants[0].privateKey)
+            txHash = w3.eth.send_raw_transaction(signed.raw_transaction)
+
+        receipt = self.w3.eth.wait_for_transaction_receipt(txHash, timeout=600, poll_latency=1)
+
+
+        self.gas_exit.append(receipt["gasUsed"])
+        self.txHashes.append(("processExits", receipt["transactionHash"].hex(), receipt["gasUsed"]))
+        logging.log_receipt(self, receipt, "processExits")
+
+        exited_events = self.get_events(self.w3, self.model, receipt, ["UserExited"])
+        exited_list = exited_events.get("UserExited", [])
+
+        if exited_list:
+            addr_to_val = {e["args"]["user"]: e["args"]["grs"] for e in exited_list}
+            for user in list(self.pytorch_model.participants):
+                if user.address in addr_to_val:
+                    grs_at_exit = addr_to_val[user.address]
+                    user._globalrep.append(grs_at_exit)
+                    user.isRegistered = False
+                    user.left_system = True
+                    self.pytorch_model.participants.remove(user)
+                    self.pytorch_model.disqualified.append(user)
+                    print(b(f"User {user.address[0:16]}... exited with {grs_at_exit:,.0f} GRS"))
+            logging.log_exits(self, exited_events, self.pytorch_model.round)
+            printer.print_divider("-", blank_line_after=True)
 
 
     def get_events(self, w3, contract, receipt, event_names):
@@ -704,6 +776,9 @@ class FLChallenge(ConnectionHelper):
                 print(green(f"USER/VICTIM @    {args['victim']}"))
                 print(green(f"ROUND SCORE:     {args['roundScore']:,}"))
                 print(green(f"PUNISHED TARGET: {args['punishedTarget']}\n"))
+                logging.log_warning(self, msg=f"Passive punishment: victim={args['victim'][:16]}... "
+                    f"roundScore={args['roundScore']:,} punishedTarget={args['punishedTarget']}", round=_current_round_no
+                )
 
         if eval_reward_events:
             # print(b("EVALUATION VOTING REWARDS DISTRIBUTION"))
@@ -883,6 +958,10 @@ class FLChallenge(ConnectionHelper):
         logging.log_round_zero(self)
         try:
             for i in range(rounds):
+                if len(self.pytorch_model.participants) <= 1:
+                    print(rb(f"Not enough participants ({len(self.pytorch_model.participants)}) -- Stopping run"))
+                    break
+
                 print(b(f"\n\nRound {_current_round} starts..."))
                 _round_start = time.perf_counter()
 
@@ -910,17 +989,17 @@ class FLChallenge(ConnectionHelper):
                     user._roundrep.append(self.get_round_reputation_of_user(user.address))
                     print(f"model participant: {user.address} gets {user._roundrep[-1]} round reputation")
                 for user in self.pytorch_model.disqualified:
-                    print(f"disqualified model participant: {user.address} has no round reputation, as he is disqualified")
+                    _state = "exited" if getattr(user, 'left_system', False) else "disqualified"
+                    print(f"{_state} model participant: {user.address} has no round reputation, as he is {_state}")
 
                 # A roundRep of 0, does not nec. mean mal.
                 contributors = [user for user in self.pytorch_model.participants if user._roundrep[-1] >= 0] # Keeps track of who will be merged in the_merge()
-                if len(contributors) == 0: # If all are negative, we merge everyone and let the contribution score calculation sort them out.
+                if len(contributors) == 0 or len(self.pytorch_model.participants) == 2: # If all are negative, we merge everyone and let the contribution score calculation sort them out. Same if there are only two participants
                     contributors = self.make_everyone_contributors()
 
                 users_weight_collector = {}
                 agg_switch_collector = {}
                 warning_collector = []
-
 
                 # Ordering of the merge. If dotproduct we merge before contribution score
                 if self.experiment_config.contribution_score_strategy == "dotproduct":
@@ -977,6 +1056,9 @@ class FLChallenge(ConnectionHelper):
                     "userStatuses": [user.getStatus() for user in self.pytorch_model.participants],
                     "GasTransactions": roundTx
                     })
+
+                self.check_and_exit_losing_users(_current_round)
+                self._process_exits()
 
                 _current_round = self.pytorch_model.round # Update current round to match with incremented round in close_round()
 

@@ -153,7 +153,7 @@ def log_round(challenge, current_round, round_time,
         )
     for _user in challenge.pytorch_model.disqualified:
         challenge._logger.user_round(
-            round=current_round, user_id=_user.id, state="disqualified",
+            round=current_round, user_id=_user.id, state="exited" if getattr(_user, 'left_system', False) else "disqualified",
             behavior=_user.attitude, role=_user.futureAttitude,
             grs=_user._globalrep[-1],
             sub_personal_acc=_user.currentAcc,
@@ -206,6 +206,21 @@ def log_punishments(challenge, events, current_round_no):
             round=current_round_no, user_id=u.id if u else None, user_address=args["victim"],
             punishment_type="passive",
             loss=args.get("loss"), round_score=args["roundScore"], new_reputation=None,
+        )
+
+
+def log_exits(challenge, events, current_round_no):
+    if challenge._logger is None:
+        return
+    user_map = {u.address: u for u in challenge.pytorch_model.participants + challenge.pytorch_model.disqualified}
+    for ev in events.get("UserExited", []):
+        args = ev["args"]
+        u = user_map.get(args["user"])
+        challenge._logger.exit(
+            round=current_round_no,
+            user_id=u.id if u else None,
+            user_address=args["user"],
+            grs_paid_out=args["grs"],
         )
 
 
