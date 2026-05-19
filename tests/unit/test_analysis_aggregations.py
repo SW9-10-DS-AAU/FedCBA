@@ -22,7 +22,7 @@ class TestAggGlobalAccuracyLossByRound:
 
     def test_output_columns(self, two_exp_global):
         result = agg.agg_global_accuracy_loss_by_round(two_exp_global)
-        assert set(result.columns) == {"round", "accuracy_mean", "accuracy_std", "loss_mean", "loss_std"}
+        assert set(result.columns) == {"round", "accuracy_mean", "accuracy_std", "loss_mean", "loss_std", "n"}
 
     def test_round_count_matches_unique_rounds(self, two_exp_global):
         result = agg.agg_global_accuracy_loss_by_round(two_exp_global)
@@ -56,7 +56,7 @@ class TestAggMergeWeightsByBehavior:
 
     def test_output_columns(self, two_exp_users):
         result = agg.agg_merge_weights_by_behavior(two_exp_users)
-        assert set(result.columns) == {"behavior", "round", "weight_mean", "weight_std"}
+        assert set(result.columns) == {"behavior", "round", "weight_mean", "weight_std", "n"}
 
     def test_round_0_has_nan_weight(self, two_exp_users):
         """Round 0 has no merge_weight — result should be NaN at round 0."""
@@ -166,7 +166,7 @@ class TestAggGrsByRole:
 
     def test_output_columns(self, two_exp_users, two_exp_metadata):
         result = agg.agg_grs_by_role(two_exp_users, two_exp_metadata)
-        assert set(result.columns) == {"role", "round", "grs_mean", "grs_std"}
+        assert set(result.columns) == {"role", "round", "grs_mean", "grs_std", "n"}
 
     def test_all_roles_present(self, two_exp_users, two_exp_metadata):
         result = agg.agg_grs_by_role(two_exp_users, two_exp_metadata)
@@ -235,7 +235,7 @@ class TestGlobalAccByAggregationStrategy:
 
     def test_output_columns(self, two_exp_global, two_exp_metadata):
         result = agg.global_acc_by_aggregation_strategy(two_exp_global, two_exp_metadata)
-        assert set(result.columns) == {"aggregation_rule", "round", "accuracy_mean", "accuracy_std"}
+        assert set(result.columns) == {"aggregation_rule", "round", "accuracy_mean", "accuracy_std", "n"}
 
     def test_aggregation_rules_present(self, two_exp_global, two_exp_metadata):
         result = agg.global_acc_by_aggregation_strategy(two_exp_global, two_exp_metadata)
@@ -262,7 +262,7 @@ class TestAggGasUsedByTxType:
 
     def test_output_columns(self, two_exp_metadata):
         result = agg.agg_gas_used_by_tx_type(self._receipts(), two_exp_metadata)
-        assert set(result.columns) == {"tx_type", "contribution_score_strategy", "gas_mean", "gas_std"}
+        assert set(result.columns) == {"tx_type", "contribution_score_strategy", "gas_mean", "gas_std", "n"}
 
     def test_tx_types_present(self, two_exp_metadata):
         result = agg.agg_gas_used_by_tx_type(self._receipts(), two_exp_metadata)

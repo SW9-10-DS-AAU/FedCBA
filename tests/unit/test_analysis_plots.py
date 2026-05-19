@@ -8,6 +8,9 @@ Each test verifies:
 matplotlib is forced to the non-interactive Agg backend so tests run headlessly.
 """
 import matplotlib
+
+from tests.analysis_helpers import make_users, make_metadata
+
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
@@ -16,7 +19,6 @@ import pytest
 
 import analysis.plots as plots
 import analysis.aggregations as agg
-from analysis_helpers import make_users, make_metadata
 
 
 @pytest.fixture(autouse=True)
@@ -194,15 +196,21 @@ def test_plot_round_kicked_by_strategy_returns_figure(agg_kicked):
 
 def test_save_figure_creates_file(tmp_path, agg_global):
     fig = plots.plot_accuracy_loss_over_rounds(agg_global)
-    out = tmp_path / "output.png"
-    plots.save_figure(fig, out)
-    assert out.exists()
-    assert out.stat().st_size > 0
+    plots.save_figure(fig, tmp_path, experiment_name="test")
+
+    out_dir = tmp_path / "test"
+    files = list(out_dir.glob("*.svg"))
+    assert len(files) == 1
+    assert files[0].stat().st_size > 0
 
 
-def test_save_figure_png_and_pdf(tmp_path, agg_global):
+def test_save_figure_auto_names_svg_files(tmp_path, agg_global):
     fig = plots.plot_accuracy_loss_over_rounds(agg_global)
-    for ext in ["png", "pdf"]:
-        out = tmp_path / f"output.{ext}"
-        plots.save_figure(fig, out)
-        assert out.exists()
+    plots.save_figure(fig, tmp_path, experiment_name="test")
+    plots.save_figure(fig, tmp_path, experiment_name="test", suffix="second")
+
+    files = sorted((tmp_path / "test").glob("*.svg"))
+    assert [file.name for file in files] == [
+        "001-accuracy_loss_over_rounds.svg",
+        "002-accuracy_loss_over_rounds-second.svg",
+    ]

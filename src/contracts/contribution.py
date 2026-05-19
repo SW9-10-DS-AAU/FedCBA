@@ -5,6 +5,7 @@ import warnings
 from termcolor import colored
 from decimal import Decimal
 from utils.colors import green, red
+from utils.printer import print_divider
 from utils.shapley import check_shapley_compliance
 from contracts import logging
 
@@ -22,9 +23,9 @@ def contribution_score(challenge, _users, _current_round_no): # pragma: no cover
 
     # Guard: no users → nothing to score
     if not _users:
-        print("-----------------------------------------------------------------------------------")
+        print_divider()
         print("No users passed to contribution_score – skipping.")
-        print("-----------------------------------------------------------------------------------")
+        print_divider()
         return
 
     print("Calculating contribution scores and evaluation rewards...\n")
@@ -37,7 +38,7 @@ def contribution_score(challenge, _users, _current_round_no): # pragma: no cover
         print(colored(msg, "yellow"))
         logging.log_warning(challenge, msg)
         scores = [share] * len(_users)
-        logging.log_contribution_scores(challenge, _users, scores, None, None, None)
+        logging.log_contribution_scores(challenge, _users, scores)
         for u in _users: u.evaluation_reward = 1
     else:
         if strategy not in _STRATEGIES:
@@ -83,7 +84,7 @@ def contribution_score(challenge, _users, _current_round_no): # pragma: no cover
         print(green(f"\nUSER @ {u.address}"))
         print(green(f"{'CONTRIBUTION SCORE:':25}{u.contribution_score}"))
         print(green(f"{'EVALUATION REWARD:':25}{u.evaluation_reward}")) if u.evaluation_reward is not None else None
-    print("-----------------------------------------------------------------------------------\n")
+    print_divider(blank_line_after=True)
 
 
 def print_shapley_warnings():
@@ -97,7 +98,7 @@ def print_shapley_warnings():
 
 # ===== Strategy implementations =====
 
-def _calculate_scores_dotproduct(challenge, users): # pragma: no cover
+def _calculate_scores_dotproduct(challenge, users, _current_round_no): # pragma: no cover
     """
     MAD-based scoring: robust per-weight outlier filtering before scoring.
     """
@@ -119,28 +120,29 @@ def _calculate_scores_dotproduct(challenge, users): # pragma: no cover
         # Raw dot product per user (pre-normalization), analogous to avg_acc/avg_loss in other strategies
         dots = torch.mv(local_updates, filtered_global_update)
         raw_values = [float(d.item()) for d in dots]
-        logging.log_contribution_scores(challenge, users, scores, raw_values, per_user_outlier_info, None)
+        logging.log_contribution_scores(challenge, users, scores)
+        logging.log_contribution_score_mad(challenge, users, "dotproduct", raw_values, per_user_outlier_info, None)
     else:
         print("not using mad")
         scores = calc_contribution_scores_dotproduct(local_updates, global_update)
-        logging.log_contribution_scores(challenge, users, scores, None, None, None)
+        logging.log_contribution_scores(challenge, users, scores)
 
     return scores
 
 
-def _calculate_scores_naive(challenge, users): # pragma: no cover
+def _calculate_scores_naive(challenge, users, _current_round_no): # pragma: no cover
     """
     Equal-share scoring: everyone contributing gets 1 / num_mergers.
     """  # unused; included for signature consistency
     num_mergers = len(users)
     scores = [calc_contribution_score_naive(num_mergers) for _ in users]
 
-    logging.log_contribution_scores(challenge, users, scores, None, None, None)
+    logging.log_contribution_scores(challenge, users, scores)
 
     return scores
 
 
-def _calculate_scores_accuracy_loss(challenge, users, mad_threshold=1.1): # pragma: no cover
+def _calculate_scores_accuracy_loss(challenge, users, _current_round_no=None, mad_threshold=1.1): # pragma: no cover
     """
     Accuracy-Loss-based scoring: use accuracy and loss directly as contribution score.
     """
@@ -153,15 +155,20 @@ def _calculate_scores_accuracy_loss(challenge, users, mad_threshold=1.1): # prag
     prev_accuracies, prev_losses = challenge.get_all_previous_accuracies_and_losses()
 
     # use mad on these and average them
-
-    mad_prev_accuracies = remove_outliers_mad(prev_accuracies, mad_threshold)
-    mad_prev_losses = remove_outliers_mad(prev_losses, mad_threshold)
+    prev_acc_info = {}
+    prev_loss_info = {}
+    mad_prev_accuracies = remove_outliers_mad(prev_accuracies, mad_threshold, collector=prev_acc_info, label="previous")
+    mad_prev_losses = remove_outliers_mad(prev_losses, mad_threshold, collector=prev_loss_info, label="previous")
 
     avg_prev_acc = np.mean(mad_prev_accuracies)
     avg_prev_loss = np.mean(mad_prev_losses)
 
+    challenge.submit_previous_loss(avg_prev_loss)
+
     avg_accuracies = []  # after loop: [30, 20, 30, 40]
     avg_losses = []  # after loop: [60, 70, 50, 80]
+    per_user_acc_info = []
+    per_user_loss_info = []
 
     for u in users:  # For loop to extract accuracies and loses.
 
@@ -169,18 +176,22 @@ def _calculate_scores_accuracy_loss(challenge, users, mad_threshold=1.1): # prag
         _, accuracies, losses = challenge.get_all_accuracies_and_losses_about(u.address)
 
         try:
-            # Multiple accuracies and losses per user
-            mad_accuracies = remove_outliers_mad(accuracies, mad_threshold)
-            mad_losses = remove_outliers_mad(losses, mad_threshold)
+            acc_info = {}
+            loss_info = {}
+            mad_accuracies = remove_outliers_mad(accuracies, mad_threshold, collector=acc_info, label="current")
+            mad_losses = remove_outliers_mad(losses, mad_threshold, collector=loss_info, label="current")
 
-            # One average accuracy and loss per user
             avg_acc = np.mean(mad_accuracies)
             avg_loss = np.mean(mad_losses)
 
-            avg_accuracies.append(avg_acc)  # int
-            avg_losses.append(avg_loss)  # int
+            avg_accuracies.append(avg_acc)
+            avg_losses.append(avg_loss)
+            per_user_acc_info.append({**prev_acc_info, **acc_info})
+            per_user_loss_info.append({**prev_loss_info, **loss_info})
         except ValueError:
             print("An error occured")
+            per_user_acc_info.append({})
+            per_user_loss_info.append({})
 
     scores = []
 
@@ -202,6 +213,11 @@ def _calculate_scores_accuracy_loss(challenge, users, mad_threshold=1.1): # prag
         scores.append(score)
 
     print(f"scores = {scores}")
+
+    logging.log_contribution_scores(challenge, users, scores)
+    logging.log_contribution_score_mad(challenge, users, "accuracy", avg_accuracies, per_user_acc_info, avg_prev_acc)
+    logging.log_contribution_score_mad(challenge, users, "loss", avg_losses, per_user_loss_info, avg_prev_loss)
+
     return scores
 
 
@@ -264,7 +280,8 @@ def _calculate_scores_accuracy_only(challenge, users, _current_round_no, mad_thr
     scores = norm_accuracies
     print(f"scores = {scores}")
 
-    logging.log_contribution_scores(challenge, users, scores, avg_accuracies, per_user_outlier_info, avg_prev_acc)
+    logging.log_contribution_scores(challenge, users, scores)
+    logging.log_contribution_score_mad(challenge, users, "accuracy", avg_accuracies, per_user_outlier_info, avg_prev_acc)
 
     return scores
 
@@ -284,6 +301,10 @@ def _calculate_scores_loss_only(challenge, users, _current_round_no, mad_thresho
     prev_info = {}
     mad_prev_losses = remove_outliers_mad(prev_losses, mad_threshold, collector=prev_info, label="previous")
     avg_prev_loss = np.mean(mad_prev_losses)
+
+    challenge.submit_previous_loss(avg_prev_loss)
+    print(f"Submitted previous loss: {avg_prev_loss}")
+
     avg_losses = []  # after loop: [60, 70, 50, 80]
     per_user_outlier_info = []
     softmax_records = []
@@ -347,16 +368,16 @@ def _calculate_scores_loss_only(challenge, users, _current_round_no, mad_thresho
 
     # print(f"scores = {scores}")
     logging.log_evaluation_votes(challenge, softmax_records)
-    logging.log_contribution_scores(challenge, users, scores, avg_losses, per_user_outlier_info, avg_prev_loss)
+    logging.log_contribution_scores(challenge, users, scores)
+    logging.log_contribution_score_mad(challenge, users, "loss", avg_losses, per_user_outlier_info, avg_prev_loss)
 
     return scores
 
 
 # ===== Helper functions =====
 
-def calc_contribution_score_naive(num_mergers) -> int: # pragma: no cover
-    score = Decimal(1) / Decimal(num_mergers)
-    return int(score * Decimal('1e18'))
+def calc_contribution_score_naive(num_mergers) -> float: # pragma: no cover
+    return float(Decimal(1) / Decimal(num_mergers))
 
 
 def calc_contribution_scores_dotproduct(local_updates: torch.Tensor,
@@ -392,11 +413,7 @@ def calc_contribution_scores_dotproduct(local_updates: torch.Tensor,
     dots = torch.mv(local_updates, global_update)  # (num_mergers,)
     scores = dots / (num_mergers * norm_U_sq)
 
-    # Convert to integer fixed-point (×1e18)
-    return [
-        int(Decimal(score.item()) * Decimal('1e18'))
-        for score in scores
-    ]
+    return [float(score.item()) for score in scores]
 
 
 def normalize_contribution_scores_old(arr, prev_val): # pragma: no cover

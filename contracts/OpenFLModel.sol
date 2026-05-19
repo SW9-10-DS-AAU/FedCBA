@@ -63,9 +63,11 @@ contract OpenFLModel {
     mapping(uint8 => mapping(address => int256)) public contributionScore; // round => user => score
     mapping(uint8 => mapping(address => uint256)) public evaluationScore; // round => user => score
     mapping(uint8 => mapping(address => bool)) public hasSubmittedEvaluationScore; // round => user => has submitted evaluation score
+    mapping(uint8 => mapping(address => bool)) public hasSubmittedContributionScore; // round => user => has submitted contribution score
     mapping(uint8 => uint16) public nrOfContributionScores; // round => number of submissions
     mapping(uint8 => uint16) public nrOfEvaluationScores; // round => number of submissions
     mapping(address => bool) public wantsToLeave;
+    mapping(uint8 => uint16) public agreedPreviousLoss; // round => agreed previous loss for that round.
 
     struct AccuracyLossSubmission {
         address[] adrs;
@@ -338,15 +340,16 @@ contract OpenFLModel {
     function submitContributionScoreAndVotingEvaluation(int256 contribScore, uint256 evalScore) external {
         require(users[msg.sender].isRegistered, "User not registered");
         require(
-            contributionScore[round][msg.sender] == 0,
+            hasSubmittedContributionScore[round][msg.sender] == false,
             "Contribution Score already submitted"
         );
         require(
-            evaluationScore[round][msg.sender] == 0,
+            hasSubmittedEvaluationScore[round][msg.sender] == false,
             "Evaluation score already submitted"
         );
 
         contributionScore[round][msg.sender] = contribScore;
+        hasSubmittedContributionScore[round][msg.sender] = true;
         nrOfContributionScores[round] += 1;
 
         evaluationScore[round][msg.sender] = evalScore;
@@ -359,8 +362,8 @@ contract OpenFLModel {
 
     function isFeedBackRoundDone() public view returns (bool roundClosed) {
         if (nrOfActiveParticipants == 0) {
-            return false;
-        } // no participants => not done
+            return false; // no participants => not done
+        }
 
         for (uint i = 0; i < participants.length; i++) {
             User storage user = users[participants[i]];
@@ -517,11 +520,12 @@ contract OpenFLModel {
 
     // Evaluation scores based on evaluation votes.
     function settleEvaluationScores() internal returns (uint evaluation_disqualification_pool) {
+        uint staking_min_grs = min_collateral / punishfactorContrib;
+
         for (uint i = 0; i < participants.length; i++) {
             User storage user = users[participants[i]];
             if (_isEligibleForRewards(user)) {
                 require(hasSubmittedEvaluationScore[round][user.addr], "Evaluation score not submitted for user"); // 0 means no evaluation score submitted. // 0 means no evaluation score submitted.
-                uint staking_min_grs = min_collateral / punishfactorContrib;
                 uint evaluation_reward = (evaluationScore[round][user.addr] * staking_min_grs) / 1e18;
                 uint new_global_rep = user.globalReputationScore + evaluation_reward - staking_min_grs;
 
@@ -529,6 +533,7 @@ contract OpenFLModel {
                     if (user.isPassivePunished && evaluation_reward > staking_min_grs) { // if users with passive punishment get rewarded, strip that reward and add surplus to pool.
                         evaluation_disqualification_pool += evaluation_reward - staking_min_grs;
                         evaluation_reward = staking_min_grs;
+                        new_global_rep = user.globalReputationScore + evaluation_reward - staking_min_grs;
                     }
                     user.globalReputationScore = new_global_rep;
 
@@ -582,7 +587,7 @@ contract OpenFLModel {
                 uint punishment = (user.globalReputationScore / punishfactorContrib) * absUint(contributionScore[round][user.addr]);
                 require(punishment > 0, "punishment is <= 0 in settle!");
                 punishment /= 1e18;
-                if (user.globalReputationScore - punishment < disq_threshold) {
+                if (user.globalReputationScore - punishment < disq_threshold) { // this is a disqualification
                     reward += user.globalReputationScore;
                     _disqualifyUser(user);
                 }
@@ -608,6 +613,7 @@ contract OpenFLModel {
         for (uint i = 0; i < participants.length; i++) {
             User storage user = users[participants[i]];
             if (_isEligibleForRewards(user) && contributionScore[round][user.addr] >= 0) {
+                require(hasSubmittedContributionScore[round][user.addr], "User (who is eligible for rewards) has not submitted contribution score");
                 uint personalReward = (reward * uint(user.weightedContribScore)) / positiveSumOfWeightedContribScore;
                 user.globalReputationScore += personalReward;
 
@@ -661,7 +667,7 @@ contract OpenFLModel {
 
     function _exitModel(address addr) internal {
         User storage user = users[addr];
-        if (!user.isRegistered) return;
+        if (!user.isRegistered) return; // Do nothing if not registered
 
         uint val = user.globalReputationScore;
         if (address(this).balance < val) {
@@ -675,6 +681,7 @@ contract OpenFLModel {
         nrOfActiveParticipants -= 1;
         wantsToLeave[addr] = false;
 
+        // Clean up participant array
         for (uint i = 0; i < participants.length; i++) {
             if (participants[i] == addr) {
                 participants[i] = address(0);
@@ -798,6 +805,9 @@ contract OpenFLModel {
             prev_loss >= 0 && prev_loss <= 65535,
             "PREVIOUS LOSS NOT BETWEEN 0 AND 65535 in submitFeedbackBytesAndAccuraciesLosses"
         );
+        prev_accs[round][msg.sender] = prev_acc;
+        prev_losses[round][msg.sender] = prev_loss;
+
         // EXACT same for-loop as fallback
         for (uint i = 0; i < ads.length; i++) {
             if (!testing) {
@@ -921,6 +931,8 @@ contract OpenFLModel {
         }
     }
 
+    function submitPreviousLoss(uint16 previousLoss) external {
+        agreedPreviousLoss[round] = previousLoss;
     function getUserPriorGRS(address user, uint8 stepsBack)
     external
     view

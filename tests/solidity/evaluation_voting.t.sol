@@ -55,6 +55,12 @@ contract EvalVotingHarness is OpenFLModel {
         hasSubmittedEvaluationScore[round][user] = true;
     }
 
+    function _setContribScore(address user, int256 score) external {
+        contributionScore[round][user] = score;
+        hasSubmittedContributionScore[round][user] = true;
+        nrOfContributionScores[round] += 1;
+    }
+
     function _setPassivePunished(address user, bool val) external {
         users[user].isPassivePunished = val;
     }
@@ -152,15 +158,28 @@ contract EvalVotingTest is Test {
         model._settleEvalScores();
     }
 
+    // Submitting a contribution score twice reverts on the second call
+    function testRevertOnDoubleContribScoreSubmit() public {
+        vm.deal(a, 1 ether);
+        vm.prank(a);
+        model.register{value: 1 ether}();
+
+        // Pre-set the contrib flag directly so only the contrib guard fires
+        model._setContribScore(a, 1e18);
+
+        vm.expectRevert("Contribution Score already submitted");
+        vm.prank(a);
+        model.submitContributionScoreAndVotingEvaluation(1e18, 1e18);
+    }
+
     // Submitting an evaluation score twice reverts on the second call
     function testRevertOnDoubleEvalScoreSubmit() public {
         vm.deal(a, 1 ether);
         vm.prank(a);
         model.register{value: 1 ether}();
 
-        // contribScore = 0 so the contribution-score guard doesn't fire on retry
-        vm.prank(a);
-        model.submitContributionScoreAndVotingEvaluation(0, 1e18);
+        // Pre-set the eval flag directly so only the eval guard fires
+        model._setEvalScore(a, 1e18);
 
         vm.expectRevert("Evaluation score already submitted");
         vm.prank(a);
