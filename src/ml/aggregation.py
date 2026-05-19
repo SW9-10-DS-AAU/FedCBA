@@ -163,10 +163,8 @@ def the_merge(pm, _current_round_no, _users, aggregation_rule: str, merge_weight
 
 def models_are_equal(sd_a, sd_b):
     # Changed from model objects to state_dict snapshots, so compare mapping keys/tensors directly.
-    if sd_a is None or sd_b is None:
-        return False
-    if sd_a.keys() != sd_b.keys():
-        return False
+    if sd_a is None or sd_b is None: return False
+    if sd_a.keys() != sd_b.keys(): return False
     return all(torch.equal(sd_a[k], sd_b[k]) for k in sd_a)
 
 
