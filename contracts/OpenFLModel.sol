@@ -377,7 +377,7 @@ contract OpenFLModel {
         return true;
     }
 
-    function makeRoundReputationsPositive () public {
+    function makeRoundReputationsPositive() public {
         for (uint i = 0; i < participants.length; i++) {
             User storage user = users[participants[i]];
             if (user.isRegistered && !user.isDisqualified) {
@@ -933,6 +933,8 @@ contract OpenFLModel {
 
     function submitPreviousLoss(uint16 previousLoss) external {
         agreedPreviousLoss[round] = previousLoss;
+    }
+
     function getUserPriorGRS(address user, uint8 stepsBack)
     external
     view
