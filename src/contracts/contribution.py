@@ -69,7 +69,7 @@ def contribution_score(challenge, _users, _current_round_no): # pragma: no cover
                 u.address,
                 nonce,
             )
-            cl = challenge.model.functions.submitContributionScore(
+            cl = challenge.model.functions.submitContributionScoreAndVotingEvaluation(
                 scaled_contribution_score, scaled_evaluation_score
             ).build_transaction(cl)
             pk = u.privateKey
