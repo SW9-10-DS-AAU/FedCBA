@@ -656,17 +656,11 @@ class FLChallenge(ConnectionHelper):
                 continue
 
             grs_current        = self.model.functions.grs(current_round, u.address).call()
-            grs_one_rounds_ago = self.model.functions.grs(current_round-1, u.address).call()
             grs_two_rounds_ago = self.model.functions.grs(current_round-2, u.address).call() if current_round != 2 else u._globalrep[0]
 
             if grs_two_rounds_ago - grs_current > threshold:
                 print(b(f"User {u.address[0:16]}... lost more than {threshold} GRS over 2 rounds — signalling leave."))
                 self._mark_wants_to_leave(u)
-
-            #TODO: remove after reviewing
-            print("current grs: ", grs_current)
-            print("grs one round ago: ", grs_one_rounds_ago)
-            print("grs two rounds ago: ", grs_two_rounds_ago)
 
 
     def _mark_wants_to_leave(self, user):
