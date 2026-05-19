@@ -114,8 +114,6 @@ class FLChallenge(ConnectionHelper):
         user = self.model.functions.getUser(user_addr).call()
         return user[2]
 
-    def get_prior_grs_of_user(self, user_addr, steps_back: int): # pragma: no cover
-        return self.model.functions.getUserPriorGRS(user_addr, steps_back).call()
 
     def get_round_reputation_of_user(self, user): # pragma: no cover
         user_struct = self.model.functions.users(user).call()
