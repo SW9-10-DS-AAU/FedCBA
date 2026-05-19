@@ -641,7 +641,7 @@ class FLChallenge(ConnectionHelper):
             self.gas_exit.append(receipt["gasUsed"])
             self.txHashes.append(("exit", receipt["transactionHash"].hex(), receipt["gasUsed"]))
             logging.log_receipt(self, receipt, "exit")
-        printer._print("-----------------------------------------------------------------------------------\n")
+        printer.print_divider("-", blank_line_after=True)
 
 
     def check_and_exit_losing_users(self, current_round):
@@ -713,7 +713,7 @@ class FLChallenge(ConnectionHelper):
                     self.pytorch_model.disqualified.append(user)
                     print(b(f"User {user.address[0:16]}... exited with {grs_at_exit:,.0f} GRS"))
             logging.log_exits(self, exited_events, self.pytorch_model.round)
-            print("-----------------------------------------------------------------------------------\n")
+            printer.print_divider("-", blank_line_after=True)
 
 
     def get_events(self, w3, contract, receipt, event_names):
