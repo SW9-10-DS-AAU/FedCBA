@@ -17,6 +17,7 @@ from utils.async_writer import AsyncWriter, NullWriter
 from contracts import contribution
 from contracts import logging
 from contracts.contribution import contribution_score
+from ml.aggregation import models_are_equal
 
 UINT256_MAX = 2**256 - 1
 
@@ -1063,6 +1064,14 @@ class FLChallenge(ConnectionHelper):
                 self._process_exits()
 
                 _current_round = self.pytorch_model.round # Update current round to match with incremented round in close_round()
+
+
+                # TODO: fixing
+                if models_are_equal(self.pytorch_model.previous_global_model, self.pytorch_model.two_previous_global_model) and models_are_equal(self.pytorch_model.two_previous_global_model, self.pytorch_model.three_previous_global_model):
+                    logging.log_warning(self, msg=f"Global model has not changed for 3 rounds -- Stopping run", round=_current_round)
+                    break
+
+
 
 
             # print(f"Number of Shapley Axioms violated: {len(contribution.runtime_warnings)}\n")

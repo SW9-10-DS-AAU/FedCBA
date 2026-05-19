@@ -378,7 +378,7 @@ PRESETS = {
         number_of_runs=1
     ),
 
-        "freerider_noise_mnist": ExperimentPreset(
+    "p10_freerider_noise_mnist": ExperimentPreset(
         number_of_good_contributors=4,
         number_of_bad_contributors=0,
         number_of_freerider_contributors=2,
@@ -399,7 +399,7 @@ PRESETS = {
         number_of_runs=3,
     ),
 
-    "freerider_noise_cifar": ExperimentPreset(
+    "p10_freerider_noise_cifar": ExperimentPreset(
         number_of_good_contributors=6,
         number_of_bad_contributors=0,
         number_of_freerider_contributors=2,
@@ -420,7 +420,7 @@ PRESETS = {
         number_of_runs=3,
     ),
 
-    "freerider_delta_weight_mnist": ExperimentPreset(
+    "p10_freerider_delta_weight_mnist": ExperimentPreset(
         number_of_good_contributors=4,
         number_of_bad_contributors=0,
         number_of_freerider_contributors=2,
@@ -441,7 +441,7 @@ PRESETS = {
         number_of_runs=3,
     ),
 
-    "freerider_delta_weight_cifar": ExperimentPreset(
+    "p10_freerider_delta_weight_cifar": ExperimentPreset(
         number_of_good_contributors=6,
         number_of_bad_contributors=0,
         number_of_freerider_contributors=2,
@@ -462,7 +462,7 @@ PRESETS = {
         number_of_runs=3,
     ),
 
-    "malicious_noise_byzantine_mnist": ExperimentPreset(
+    "p10_malicious_noise_byzantine_mnist": ExperimentPreset(
         number_of_good_contributors=4,
         number_of_bad_contributors=2,
         number_of_freerider_contributors=0,
@@ -483,7 +483,7 @@ PRESETS = {
         number_of_runs=3,
     ),
 
-    "malicious_noise_byzantine_cifar": ExperimentPreset(
+    "p10_malicious_noise_byzantine_cifar": ExperimentPreset(
         number_of_good_contributors=6,
         number_of_bad_contributors=2,
         number_of_freerider_contributors=0,
@@ -504,7 +504,7 @@ PRESETS = {
         number_of_runs=3,
     ),
 
-    "fedavg_vs_grs_freerider_mnist": FullPreset(
+    "p10_fedavg_vs_grs_freerider_mnist": FullPreset(
         fork=True,
         reward=int(0),
         # ingen reward! alle får alligevel samme reward i hver runde, så det er nemmest deres grs bare forbliver 1.1 og 0.8.
@@ -538,7 +538,7 @@ PRESETS = {
         number_of_runs=10
     ),
 
-    "fedavg_vs_grs_freerider_cifar": FullPreset(
+    "p10_fedavg_vs_grs_freerider_cifar": FullPreset(
         fork=True,
         reward=int(0),
         # ingen reward! alle får alligevel samme reward i hver runde, så det er nemmest deres grs bare forbliver 1.1 og 0.8.
@@ -572,7 +572,7 @@ PRESETS = {
         number_of_runs=10
     ),
 
-    "fedavg_vs_grs_malicious_mnist": FullPreset(
+    "p10_fedavg_vs_grs_malicious_mnist": FullPreset(
         fork=True,
         reward=int(0),
         # ingen reward! alle får alligevel samme reward i hver runde, så det er nemmest deres grs bare forbliver 1.1 og 0.8.
@@ -606,7 +606,7 @@ PRESETS = {
         number_of_runs=10
     ),
 
-    "fedavg_vs_grs_malicious_cifar": FullPreset(
+    "p10_fedavg_vs_grs_malicious_cifar": FullPreset(
         fork=True,
         reward=int(0),
         # ingen reward! alle får alligevel samme reward i hver runde, så det er nemmest deres grs bare forbliver 1.1 og 0.8.
@@ -638,6 +638,49 @@ PRESETS = {
         data_distribution=["random_split"],
         dirichlet_alpha=None,
         number_of_runs=10
+    ),
+
+    "p10_MAIN_GRAPHS_comparing_aggregation_rules_mnist": FullPreset(
+        # defaults
+        fork=True,
+        reward=int(1e18),
+        standard_buy_in=int(1e18),
+        min_buy_in=int(1e18),
+        max_buy_in=int(1e18),
+        first_round_fee=50,
+        punish_factor=3,
+        punish_factor_contrib=3,
+        number_of_inactive_contributors=0,
+        force_merge_all=True,      # NOT DEFAULT! experiment-specific
+        use_nobody_is_kicked=True, # NOT DEFAULT! experiment-specific
+
+        # always this
+        use_outlier_detection=[True],
+        contribution_score_strategy=["loss_only"],
+        data_distribution=["random_split"],
+        dirichlet_alpha=None,
+
+        # best freerider
+        freerider_start_round=[1],
+        freerider_noise_scale=[0],
+        freerider_attack_type=["delta_weight"],
+
+        # best malicious
+        malicious_start_round=None,
+        malicious_noise_scale=[0.01],
+        malicious_attack_type=["byzantine"],
+
+        # dataset-specific
+        number_of_good_contributors=4,
+        number_of_bad_contributors=1,
+        number_of_freerider_contributors=1,
+        minimum_rounds=200, # NOT USUAL FOR MNIST! experiment-specific
+        epochs=1,
+        batch_size=32,
+
+        # experiment-specific
+        aggregation_rule=["FedAVG", "positives_only", "plus_one_normalize", "binary_switch[positives_only, plus_one_normalize]", "partial_switch[retro, positives_only, plus_one_normalize]"],
+        number_of_runs=10,
     ),
 }
 

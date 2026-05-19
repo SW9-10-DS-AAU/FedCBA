@@ -27,6 +27,7 @@ def the_merge(pm, _current_round_no, _users, aggregation_rule: str, merge_weight
     # state_dict + detach().clone(): lightweight independent snapshot; no need to copy the full model object.
     pre_merge_snapshot = OrderedDict((k, v.detach().clone()) for k, v in pm.global_model.state_dict().items())
 
+    pm.three_previous_global_model = pm.two_previous_global_model
     pm.two_previous_global_model = pm.previous_global_model
     pm.previous_global_model = pre_merge_snapshot
 
