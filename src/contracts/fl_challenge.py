@@ -1072,15 +1072,6 @@ class FLChallenge(ConnectionHelper):
                     logging.log_warning(self, msg=f"Global model has not changed for 3 rounds -- Stopping run", round=_current_round)
                     break
 
-
-
-
-            # print(f"Number of Shapley Axioms violated: {len(contribution.runtime_warnings)}\n")
-            # if contribution.runtime_warnings:
-            #     print("\n" + red("!" * 30 + " SHAPLEY WARNINGS " + "!" * 30))
-            #     for warn in contribution.runtime_warnings:
-            #         print(colored(warn, 'yellow'))
-            #     print(red("!" * 78))
             contribution.print_shapley_warnings()
 
             self.writer.writeComment(f"$gasCosts${self.gas_feedback},{self.gas_register},{self.gas_slot},{self.gas_weights},{self.gas_close},{self.gas_deploy},{self.gas_exit}")
