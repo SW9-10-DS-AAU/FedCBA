@@ -243,7 +243,7 @@ class PytorchModel:
         print(green(f"Total federated training time: {total_time:.2f} seconds\n"))
 
 
-    def apply_training_results(self, results):
+    def apply_training_results(self, results): # pragma: p9
         # Apply results back to participants
         user_map = {u.id: u for u in self.participants}
         for user_id, state_dict, val_loss, val_acc in results:
@@ -254,7 +254,7 @@ class PytorchModel:
             evaluation.finalize_user_evaluation(self, user)
 
 
-    def run_sequential(self, num_gpus: int | None = None):
+    def run_sequential(self, num_gpus: int | None = None): # pragma: p9
         if len(self.participants) == 0:
             raise RuntimeError("All participants have been disqualified - simulation cannot continue.")
 
@@ -332,7 +332,7 @@ class PytorchModel:
         return results
 
 
-    def run_cpu_multiprocessing(self, num_gpus: int | None = None):
+    def run_cpu_multiprocessing(self, num_gpus: int | None = None): # pragma: p9
         if len(self.participants) == 0:
             raise RuntimeError("All participants have been disqualified - simulation cannot continue.")
         if self._pool is None:

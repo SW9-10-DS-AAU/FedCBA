@@ -26,12 +26,12 @@ if DEVICE.type == "cuda":
     torch.backends.cudnn.conv.fp32_precision = "tf32"
 
 
-def model_to_device(net: nn.Module) -> nn.Module:
+def model_to_device(net: nn.Module) -> nn.Module: # pragma: p9
     # Move model once; keep it on the chosen device
     return net.to(DEVICE, non_blocking=NON_BLOCKING)
 
 
-def cuda_safe_dataloader(ds, batch_size, shuffle=False):
+def cuda_safe_dataloader(ds, batch_size, shuffle=False): # pragma: p9
     return DataLoader(
         ds,
         batch_size=batch_size,
@@ -42,7 +42,7 @@ def cuda_safe_dataloader(ds, batch_size, shuffle=False):
     )
 
 
-def print_training_mode(num_gpus: int, num_processes: int):
+def print_training_mode(num_gpus: int, num_processes: int): # pragma: p9
     """Prints a clean status message describing how training will run."""
     if num_gpus >= 2:
         print(green(f"Detected {num_gpus} GPU(s) → Parallel multi-GPU training"))
