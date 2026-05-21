@@ -303,7 +303,6 @@ def _calculate_scores_loss_only(challenge, users, _current_round_no, mad_thresho
     avg_prev_loss = np.mean(mad_prev_losses)
 
     challenge.submit_previous_loss(avg_prev_loss)
-    print(f"Submitted previous loss: {avg_prev_loss}")
 
     avg_losses = []  # after loop: [60, 70, 50, 80]
     per_user_outlier_info = []
