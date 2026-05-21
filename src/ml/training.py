@@ -131,20 +131,21 @@ def train_user_proc(user_id, model_state, train_ds, val_ds, epochs, device_id, d
     # Recreate model based on dataset
     if dataset == "mnist":
         model = Net_MNIST()
-    else:
+        num_workers, persistent_workers = 0, False
+    else: # CIFAR
         model = Net_CIFAR()
+        num_workers, persistent_workers = _loader_worker_options(use_cuda)
 
     model.load_state_dict(model_state)
     model.to(device)
 
     # Rebuild dataloaders inside the process
-    num_workers, persistent_workers = _loader_worker_options(use_cuda)
     train_loader = DataLoader(train_ds, batch_size=batchsize, shuffle=shuffle,
                               pin_memory=pin_memory, num_workers=num_workers,
-                              persistent_workers=persistent_workers)
+                              persistent_workers=persistent_workers, prefetch_factor=4 if num_workers > 0 else None)
     val_loader = DataLoader(val_ds, batch_size=batchsize, shuffle=shuffle,
-                            pin_memory=pin_memory, num_workers=num_workers,
-                            persistent_workers=persistent_workers)
+                            pin_memory=pin_memory, num_workers=0,
+                            persistent_workers=False)
 
     train_start = time.perf_counter()
     train_compile, train_data_wait, train_compute, train_batches = train(model, train_loader, epochs, device)  # Line 285 in original code

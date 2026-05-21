@@ -683,7 +683,7 @@ PRESETS = {
         number_of_runs=10,
     ),
 
-"num_rounds_mnist": FullPreset(
+    "num_rounds_mnist": FullPreset(
         # defaults
         fork=True,
         reward=int(1e18),

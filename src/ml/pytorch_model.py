@@ -323,7 +323,7 @@ class PytorchModel:
             results = [r.result() for r in async_results] # Collect results, waiting for all to finish.
         except KeyboardInterrupt:
             for pool in self._gpu_pools:
-                pool.shutdown(wait=False, cancel_futures=True)
+                pool.shutdown(wait=True, cancel_futures=True)
             self._gpu_pools = []
             raise
 

@@ -2,11 +2,12 @@ import numpy as np
 import ml.training as training
 import math
 from utils.colors import green, red, yellow, b, rb
+from utils.printer import print_divider
 from web3 import Web3
 from ml.runtime import DEVICE
 
 
-def exchange_models(pm): # pragma: no cover
+def exchange_models(pm): # pragma: openfl
     print("Users exchanging models...")
     for user in pm.participants:
         user.userToEvaluate = []
@@ -16,10 +17,10 @@ def exchange_models(pm): # pragma: no cover
             if j.model in user.userToEvaluate:
                 continue
             user.userToEvaluate.append(j)
-    print("-----------------------------------------------------------------------------------")
+    print_divider()
 
 
-def verify_models(pm, on_chain_hashes): # pragma: no cover
+def verify_models(pm, on_chain_hashes): # pragma: openfl
     print("Users verifying models...")
     for _user in pm.participants:
         _user.cheater = []
@@ -29,10 +30,10 @@ def verify_models(pm, on_chain_hashes): # pragma: no cover
                     red(f"Account {_user.id}: Account {user.address[0:16]}... could not provide the registered model"))
                 _user.cheater.append(user)
 
-    print("-----------------------------------------------------------------------------------")
+    print_divider()
 
 
-def get_hash(_state_dict): # pragma: no cover
+def get_hash(_state_dict): # pragma: openfl
     if not isinstance(_state_dict, dict):
         _state_dict = dict(_state_dict)
 
@@ -53,15 +54,18 @@ def get_hash(_state_dict): # pragma: no cover
     return Web3.keccak(blob)  # remove hex to match old, with improved algo.
 
 
-def evaluate_peers(pm): # pragma: no cover
+def evaluate_peers(pm): # pragma: openfl
     print("Users evaluating models...")
 
     scalar = 100  # Adds more decimals for precision (Adding 0 gives another decimal, vice versa)
     MAX_UINT16_SIZE = 65535
-    count_dq = len(pm.disqualified)
 
-    feedback_matrix = np.zeros((1, len(pm.participants) + count_dq, len(pm.participants) + count_dq))[0]
-    n = len(pm.participants) + count_dq
+    all_users = pm.participants + pm.disqualified
+    n = max((user.id for user in all_users), default=-1) + 1
+    feedback_matrix = np.zeros((n, n))
+
+    # the matrices are accessed by user.id, so their size should be based on the largest possible user.id, not the current active participant count.
+
     accuracy_matrix = [[0 for _ in range(n)] for _ in range(n)]
     loss_matrix = [[0 for _ in range(n)] for _ in range(n)]
     prev_accs = [0 for _ in range(n)]
@@ -156,7 +160,7 @@ def evaluate_peers(pm): # pragma: no cover
     return feedback_matrix, accuracy_matrix, loss_matrix, prev_accs, prev_losses
 
 # Same as lines 294-296,306 in original code.
-def finalize_user_evaluation(pm, user):  # pragma: no cover
+def finalize_user_evaluation(pm, user):  # pragma: openfl
     loss, acc = training.test(user.model, pm.test, DEVICE)
     user._accuracy.append(acc) # Line 295 in original code
     user._loss.append(loss) # Line 296 in original code
