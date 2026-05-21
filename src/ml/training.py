@@ -1,8 +1,9 @@
 import sys
+import multiprocessing as mp
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from ml.runtime import NON_BLOCKING
+from ml.runtime import NON_BLOCKING, NUM_WORKERS, PERSISTENT_WORKERS
 from ml.cnn_models import Net_CIFAR, Net_MNIST
 from typing import Tuple
 
@@ -89,6 +90,14 @@ def test(net, testloader: torch.utils.data.DataLoader, device: torch.device) -> 
     return loss, accuracy
 
 
+def _loader_worker_options() -> tuple[int, bool]:
+    # multiprocessing.Pool workers are daemonic. A DataLoader with workers
+    # would try to create child processes from that pool worker.
+    if mp.current_process().daemon:
+        return 0, False
+    return NUM_WORKERS, PERSISTENT_WORKERS
+
+
 def train_user_proc(user_id, model_state, train_ds, val_ds, epochs, device_id, dataset, batchsize, pin_memory,
                     shuffle):
     # Multi-GPU Support
@@ -106,10 +115,13 @@ def train_user_proc(user_id, model_state, train_ds, val_ds, epochs, device_id, d
     model.to(device)
 
     # Rebuild dataloaders inside the process
+    num_workers, persistent_workers = _loader_worker_options()
     train_loader = DataLoader(train_ds, batch_size=batchsize, shuffle=shuffle,
-                              pin_memory=pin_memory)
+                              pin_memory=pin_memory, num_workers=num_workers,
+                              persistent_workers=persistent_workers)
     val_loader = DataLoader(val_ds, batch_size=batchsize, shuffle=shuffle,
-                            pin_memory=pin_memory)
+                            pin_memory=pin_memory, num_workers=num_workers,
+                            persistent_workers=persistent_workers)
 
     train(model, train_loader, epochs, device)  # Line 285 in original code
     val_loss, val_acc = test(model, val_loader, device)  # Line 286 in original code
