@@ -725,9 +725,11 @@ contract OpenFLModel {
 
         uint remaining = totalRegistered - registeredWantToLeave;
 
+        require(rewardLeft > 0, "No rewards left");
+
         if (remaining == 0) {
             // Too few users would remain — distribute rewardLeft to all and exit everyone
-            if (rewardLeft > 0 && registeredWantToLeave > 0) {
+            if (registeredWantToLeave > 0) {
                 uint share = rewardLeft / registeredWantToLeave;
                 for (uint i = 0; i < participants.length; i++) {
                     User storage user = users[participants[i]];
@@ -740,17 +742,15 @@ contract OpenFLModel {
             }
         } else if (remaining == 1) {
             // Only one user would remain, so give all rewardLeft to that user and exit everyone else who wants to leave
-            if (rewardLeft > 0 && registeredWantToLeave > 0) {
+            if (registeredWantToLeave > 0) {
                 uint share = rewardLeft;
                 for (uint i = 0; i < participants.length; i++) {
                     User storage user = users[participants[i]];
                     if (user.isRegistered) {
-                        if (wantsToLeave[user.addr]) {
-                            _exitUser(user.addr);
-                        } else {
+                        if (!wantsToLeave[user.addr]) {
                             user.globalReputationScore += share;
-                            _exitUser(user.addr);
                         }
+                        _exitUser(user.addr);
                     }
                 }
                 rewardLeft = 0;

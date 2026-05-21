@@ -67,11 +67,61 @@ contract FallbackGasTest is Test {
     }
 
     function testSubmitFeedbackBytesGas() public {
-    bytes memory data = buildPacked(users, scores);
+        bytes memory data = buildPacked(users, scores);
 
-    // call the new function directly
-    model.submitFeedbackBytes(data);
-}
+        // call the new function directly
+        model.submitFeedbackBytes(data);
+    }
+
+    function testFallbackPackedFeedbackUpdatesTargetReputation() public {
+        address voter = makeAddr("fallbackVoter");
+        address target = makeAddr("fallbackTarget");
+        _registerFeedbackPair(voter, target);
+
+        address[] memory targets = new address[](1);
+        targets[0] = target;
+        int256[] memory votes = new int256[](1);
+        votes[0] = 1;
+
+        bytes memory data = buildPacked(targets, votes);
+        vm.prank(voter);
+        (bool ok,) = address(model).call(data);
+
+        assertTrue(ok);
+        (, , , int targetRoundReputation, , , , , , ) = model.getUser(target);
+        assertEq(targetRoundReputation, int256(1 ether));
+    }
+
+    function testSubmitFeedbackBytesPackedFeedbackUpdatesTargetReputation() public {
+        address voter = makeAddr("bytesVoter");
+        address target = makeAddr("bytesTarget");
+        _registerFeedbackPair(voter, target);
+
+        address[] memory targets = new address[](1);
+        targets[0] = target;
+        int256[] memory votes = new int256[](1);
+        votes[0] = -1;
+
+        vm.prank(voter);
+        model.submitFeedbackBytes(buildPacked(targets, votes));
+
+        (, , , int targetRoundReputation, , , , , , ) = model.getUser(target);
+        assertEq(targetRoundReputation, -int256(1 ether));
+    }
+
+    function _registerFeedbackPair(address voter, address target) internal {
+        model.setTesting(false);
+
+        vm.deal(voter, 1 ether);
+        vm.deal(target, 1 ether);
+        vm.prank(voter);
+        model.register{value: 1 ether}();
+        vm.prank(target);
+        model.register{value: 1 ether}();
+
+        vm.warp(block.timestamp + 86401);
+        vm.roll(block.number + 1);
+    }
 
     // -------------------------------------------------------------
     // Helper: Encode calldata exactly as your fallback expects

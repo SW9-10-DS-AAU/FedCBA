@@ -2,7 +2,7 @@
 pragma solidity ^0.8.9;
 
 import "forge-std/Test.sol";
-import "../../contracts/OpenFLModel.sol"; // Production contract imported (Inheritance)
+import "../../contracts/OpenFLModel.sol"; // Production contract imported for the test harness.
 
 // Tests for the leave/exit flow:
 //   - processExits() three branches: remaining == 0, remaining == 1, remaining >= 2
@@ -148,14 +148,14 @@ contract LeaveExitTest is Test {
 
     // Branch: remaining == 0  (OpenFLModel.sol:728)
     // Setup:
-    //   - init 3 users (a, b, c) with some GRS each
+    //   - register 3 users with collateral
     //   - flag all three with _setWantsToLeave
     //   - _setRewardLeft(3 ether)
     //   - vm.deal(address(model), enough to cover GRS + reward)
     // Action:
     //   - model.processExits()
     // Assert:
-    //   - each user's ETH balance increased by (initial GRS + 1 ether share)
+    //   - UserExited reports each user's GRS after the reward share is added
     //   - model.rewardLeft() == 0
     //   - model.nrOfActiveParticipants() == 0
     //   - none of them isRegistered anymore
@@ -206,13 +206,12 @@ contract LeaveExitTest is Test {
 
     // Branch: remaining == 1  (OpenFLModel.sol:741)
     // Setup:
-    //   - init 3 users; flag a and b only
+    //   - register 3 users; flag a and b only
     //   - _setRewardLeft(3 ether); fund model
     // Action:
     //   - model.processExits()
     // Assert:
-    //   - c (survivor) gets exited *with* +3 ether added to GRS before exit
-    //     → check c's ETH balance delta = c's original GRS + 3 ether
+    //   - c (survivor) exits with +3 ether added to GRS
     //   - a and b exit at their original GRS (no share)
     //   - rewardLeft == 0
     //   - all three end up not registered, nrOfActiveParticipants == 0
@@ -252,8 +251,8 @@ contract LeaveExitTest is Test {
 
     // Branch: remaining >= 2  (OpenFLModel.sol:757)
     // Setup:
-    //   - init 4 users (a, b, c, d); flag a and b
-    //   - _setRewardLeft(2 ether); fund model
+    //   - register 4 users; flag two of them
+    //   - _setRewardLeft(2 ether)
     // Action:
     //   - model.processExits()
     // Assert:
@@ -265,37 +264,47 @@ contract LeaveExitTest is Test {
     function testProcessExits_remainingMany_exitsOnlyFlaggedNoRedistribution() public {
         _registerThreeUsers();
 
+        // Register a 4th user so remaining == 4 - 2 == 2 (the >= 2 branch).
+        address user4 = makeAddr("user4");
+        vm.deal(user4, COLLATERAL);
+        vm.prank(user4); model.register{value: COLLATERAL}();
+
         model._setWantsToLeave(user1, true);
         model._setWantsToLeave(user2, true);
 
-        model._setRewardLeft(3 ether);
+        model._setRewardLeft(2 ether);
 
-        vm.deal(address (model), 3 ether + COLLATERAL * 3); // fund the model to cover all exits
-
-        // Note: _exitUser() emits the event before it zeroes the user:
+        // Only user1 and user2 are paid out — no redistribution to survivors.
         vm.expectEmit(true, false, false, true, address(model));
         emit UserExited(user1, 1 ether);
 
         vm.expectEmit(true, false, false, true, address(model));
         emit UserExited(user2, 1 ether);
 
-        vm.expectEmit(true, false, false, true, address(model));
-        emit UserExited(user3, 4 ether);
-
         model.processExits();
 
-        assert(model._getGRS(user1) == 0);
-        assert(model._getGRS(user2) == 0);
-        assert(model._getGRS(user3) == 0);
-
-        assert(model.rewardLeft() == 0);
-        assert(model.nrOfActiveParticipants() == 0);
+        // Leavers: cleaned up.
         assert(!model._isRegistered(user1));
         assert(!model._isRegistered(user2));
-        assert(!model._isRegistered(user3));
+        assert(model._getGRS(user1) == 0);
+        assert(model._getGRS(user2) == 0);
+
+        // Survivors: untouched. Still registered, GRS unchanged, no reward share added.
+        assert(model._isRegistered(user3));
+        assert(model._isRegistered(user4));
+        assert(model._getGRS(user3) == 1 ether);
+        assert(model._getGRS(user4) == 1 ether);
+
+        // rewardLeft is NOT consumed in this branch.
+        assert(model.rewardLeft() == 2 ether);
+        assert(model.nrOfActiveParticipants() == 2);
+
+        // Holes at slots 0 and 1; survivors still in place.
+        assert(model.participants(0) == address(0));
+        assert(model.participants(1) == address(0));
+        assert(model.participants(2) == user3);
+        assert(model.participants(3) == user4);
     }
-
-
     // ---------------------------------------------------------------------
     // Part 2: _exitUser mechanics
     // ---------------------------------------------------------------------
@@ -313,36 +322,26 @@ contract LeaveExitTest is Test {
     //   - UserExited event emits grs = 5 ether (UNCAPPED — documents the discrepancy at line 677)
     //     Use vm.expectEmit + emit UserExited(a, 5 ether) before the call.
     function testExitModel_balanceCappedWhenContractUnderfunded() public {
-        _registerThreeUsers();
+        user1 = makeAddr("user1");
+        model._initUser(user1, 5 ether);   // GRS = 5 ether
+        vm.deal(address(model), 1 ether);  // contract only has 1 ether to pay out
 
-        model._setWantsToLeave(user1, true);
-        model._setWantsToLeave(user2, true);
+        uint balBefore = user1.balance;
 
-        model._setRewardLeft(3 ether);
-
-        vm.deal(address (model), 3 ether + COLLATERAL * 3); // fund the model to cover all exits
-
-        // Note: _exitUser() emits the event before it zeroes the user:
+        // Event emits the UNCAPPED GRS (documents the discrepancy at OpenFLModel.sol:677).
         vm.expectEmit(true, false, false, true, address(model));
-        emit UserExited(user1, 1 ether);
+        emit UserExited(user1, 5 ether);
 
-        vm.expectEmit(true, false, false, true, address(model));
-        emit UserExited(user2, 1 ether);
+        vm.prank(user1);
+        model.exitModel();
 
-        vm.expectEmit(true, false, false, true, address(model));
-        emit UserExited(user3, 4 ether);
+        // Payout is capped at the contract's available balance.
+        assert(user1.balance - balBefore == 1 ether);
+        assert(address(model).balance == 0);
 
-        model.processExits();
-
-        assert(model._getGRS(user1) == 0);
-        assert(model._getGRS(user2) == 0);
-        assert(model._getGRS(user3) == 0);
-
-        assert(model.rewardLeft() == 0);
-        assert(model.nrOfActiveParticipants() == 0);
         assert(!model._isRegistered(user1));
-        assert(!model._isRegistered(user2));
-        assert(!model._isRegistered(user3));
+        assert(model._getGRS(user1) == 0);
+        assert(model.nrOfActiveParticipants() == 0);
     }
 
 
@@ -399,23 +398,15 @@ contract LeaveExitTest is Test {
         assert(!model._isRegistered(user1));
         assert(model.nrOfActiveParticipants() == 0);
 
-        assert(user1.balance == balAfterFirstExit);              // no second payout
+        // Second exit: hits the !isRegistered early-return at OpenFLModel.sol:670.
+        vm.recordLogs();
+        vm.prank(user1);
+        model.exitModel();
+
+        assert(user1.balance == balAfterFirstExit);          // no second payout
         assert(model.nrOfActiveParticipants() == 0);         // no underflow
         assert(vm.getRecordedLogs().length == 0);            // no second event
-
     }
-
-    // A reentry is when a contract calls back into the contract that just called it — before the first call has finished.
-    //  One transaction. The attacker's receive() interrupts the model's execution and calls back in before the first _exitUser has finished.
-    //  Storage is in a half-updated state during that window — and that's the exploitable surface.
-    //
-    //  What ReentrantExiter does
-    // It's modeling a malicious contract that abuses the synchronous nature of EVM calls to try to drain
-    //   funds during the small window when the model is paused mid-payout. The test proves the model closes that window correctly (by setting
-    //  isRegistered = false before sending ETH).
-
-    // Test that the model correctly defends against the reentrancy attack. Verify Entering is safe.
-
 
     // Reentrancy safety
     // Setup:
@@ -448,6 +439,15 @@ contract LeaveExitTest is Test {
         assert(address(model).balance == 0);
         assert(!model._isRegistered(address(attacker)));
         assert(model.nrOfActiveParticipants() == 0);
+
+        // Exactly one UserExited event — the reentrant call early-returned, no second emit.
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        uint exitedCount = 0;
+        bytes32 sig = keccak256("UserExited(address,uint256)");
+        for (uint i = 0; i < logs.length; i++) {
+            if (logs[i].topics.length > 0 && logs[i].topics[0] == sig) exitedCount++;
+        }
+        assert(exitedCount == 1);
     }
 
     // Downstream impact of address(0) holes in participants[]
@@ -497,8 +497,8 @@ contract LeaveExitTest is Test {
         assert(model.nrOfActiveParticipants() == 2);
 
         // Now drive a path that iterates participants: flag user1 + processExits.
-        // With one leaver and one survivor (user3), this hits the remaining==1 branch:
-        // user1 exits at their GRS, user3 absorbs rewardLeft (here 0) and exits too.
+        // With one leaver and one survivor (user3), this hits the remaining == 1
+        // branch: user1 exits at GRS and user3 absorbs rewardLeft before exit.
         // The key thing: the loop must skip the address(0) hole without reverting
         // or reading users[address(0)] in a way that corrupts state.
         model._setWantsToLeave(user1, true);
