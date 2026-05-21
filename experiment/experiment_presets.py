@@ -640,7 +640,7 @@ PRESETS = {
         number_of_runs=10
     ),
 
-    "p10_MAIN_GRAPHS_comparing_aggregation_rules_mnist": FullPreset(
+    "comp_agg_mnist": FullPreset( # tidligere filnavn: p10_MAIN_GRAPHS_comparing_aggregation_rules_mnist
         # defaults
         fork=True,
         reward=int(1e18),
