@@ -1,143 +1,175 @@
-from dataclasses import dataclass
-from concurrent.futures import ProcessPoolExecutor
-import os
-
-import psutil
-import torch
-from utils.colors import yellow
-
-
-@dataclass(frozen=True)
-class TrainingPlan:
-    # reason values: debug, multi_gpu, cpu_parallel, cpu_single_worker, single_gpu
-    reason: str
-    parallel: bool
-    num_gpus: int
-    workers: int
+import numpy as np
+import ml.training as training
+import math
+from utils.colors import green, red, yellow, b, rb
+from web3 import Web3
+from ml.runtime import DEVICE
 
 
-def pin_cuda_worker(device_id: int):
-    torch.cuda.set_device(device_id)
+def exchange_models(pm): # pragma: no cover
+    print("Users exchanging models...")
+    for user in pm.participants:
+        user.userToEvaluate = []
+        for j in pm.participants:
+            if user.model == j.model:
+                continue
+            if j.model in user.userToEvaluate:
+                continue
+            user.userToEvaluate.append(j)
+    print("-----------------------------------------------------------------------------------")
 
 
-def resolve_cpu_pool_size(participants: int):
-    override = os.getenv("FEDCBA_CPU_WORKERS")
-    if override is not None:
-        try:
-            workers = int(override)
-        except ValueError as exc:
-            raise ValueError("FEDCBA_CPU_WORKERS must be an integer") from exc
-        if workers < 1:
-            raise ValueError("FEDCBA_CPU_WORKERS must be at least 1")
-        resolved = max(1, min(workers, participants))
-        decision = {
-            "override": workers,
-            "participants": participants,
-            "resolved": resolved,
-        }
-        return resolved, decision
+def verify_models(pm, on_chain_hashes): # pragma: no cover
+    print("Users verifying models...")
+    for _user in pm.participants:
+        _user.cheater = []
+        for user in _user.userToEvaluate:
+            if not get_hash(user.model.state_dict()) == on_chain_hashes[user.id]:
+                print(
+                    red(f"Account {_user.id}: Account {user.address[0:16]}... could not provide the registered model"))
+                _user.cheater.append(user)
 
-    logical_cores = os.cpu_count() or 1
-    physical_cores = psutil.cpu_count(logical=False) or logical_cores
-    available_gb = psutil.virtual_memory().available / (1024 ** 3)
-
-    core_cap = max(1, physical_cores - 1)
-    ram_cap = max(1, int((available_gb - 2) // 2))
-    resolved = max(1, min(participants, core_cap, ram_cap))
-    decision = {
-        "override": None,
-        "participants": participants,
-        "physical_cores": physical_cores,
-        "logical_cores": logical_cores,
-        "available_gb": available_gb,
-        "core_cap": core_cap,
-        "ram_cap": ram_cap,
-        "resolved": resolved,
-    }
-    return resolved, decision
+    print("-----------------------------------------------------------------------------------")
 
 
-def resolve_training_plan(participants: int, debugging: bool):
-    if debugging:
-        return TrainingPlan("debug", False, torch.cuda.device_count(), 1), None
+def get_hash(_state_dict): # pragma: no cover
+    if not isinstance(_state_dict, dict):
+        _state_dict = dict(_state_dict)
 
-    num_gpus = torch.cuda.device_count()
-
-    if num_gpus > 1:
-        return TrainingPlan("multi_gpu", True, num_gpus, num_gpus), None
-
-    if num_gpus == 0:
-        workers, decision = resolve_cpu_pool_size(participants)
-        if workers > 1:
-            return TrainingPlan("cpu_parallel", True, num_gpus, workers), decision
-        return TrainingPlan("cpu_single_worker", False, num_gpus, 1), decision
-
-    return TrainingPlan("single_gpu", False, num_gpus, 1), None
-
-
-def create_cpu_pool(ctx, workers: int):
-    return ctx.Pool(processes=workers)
-
-
-def create_gpu_pools(ctx, num_gpus: int):
-    return [
-        ProcessPoolExecutor(
-            max_workers=1,
-            mp_context=ctx,
-            initializer=pin_cuda_worker,
-            initargs=(device_id,),
-        )
-        for device_id in range(num_gpus)
-    ]
+    parts = []
+    for k, v in sorted(_state_dict.items(), key=lambda x: x[0]):
+        t = v.detach()
+        if t.is_cuda:
+            t = t.cpu()
+        t = t.contiguous()
+        parts.append(k.encode("utf-8"))
+        parts.append(b"|")
+        # include shape to avoid accidental collisions
+        parts.append(np.asarray(t.shape, dtype=np.int64).tobytes())
+        parts.append(b"|")
+        parts.append(t.numpy().tobytes())
+        parts.append(b"\n")
+    blob = b"".join(parts)
+    return Web3.keccak(blob)  # remove hex to match old, with improved algo.
 
 
-def close_pools(cpu_pool, gpu_pools):
-    if cpu_pool is not None:
-        cpu_pool.close()
-        cpu_pool.join()
-    for pool in gpu_pools:
-        pool.shutdown(wait=True)
+def evaluate_peers(pm): # pragma: no cover
+    print("Users evaluating models...")
+
+    scalar = 100  # Adds more decimals for precision (Adding 0 gives another decimal, vice versa)
+    MAX_UINT16_SIZE = 65535
+    count_dq = len(pm.disqualified)
+
+    feedback_matrix = np.zeros((1, len(pm.participants) + count_dq, len(pm.participants) + count_dq))[0]
+    n = len(pm.participants) + count_dq
+    accuracy_matrix = [[0 for _ in range(n)] for _ in range(n)]
+    loss_matrix = [[0 for _ in range(n)] for _ in range(n)]
+    prev_accs = [0 for _ in range(n)]
+    prev_losses = [0 for _ in range(n)]
+
+    for feedbackGiver in pm.participants:
+        valloader = feedbackGiver.val
+        bad_att = feedbackGiver.attitude == "bad"
+        free_att = feedbackGiver.attitude == "freerider"
+        accuracy_last_round = -1
+
+        for ix, user in enumerate(feedbackGiver.userToEvaluate):
+            if not bad_att and not free_att:
+                loss, accuracy = training.test(user.model, valloader, DEVICE)
+                prev_loss, prev_acc = training.test(pm.global_model, valloader, DEVICE)
+                prev_acc = round(prev_acc * 100 * scalar)
+                prev_loss = safe_scale(prev_loss, scalar, MAX_UINT16_SIZE)
+
+            if bad_att:
+                feedback_matrix[feedbackGiver.id][user.id] = -1
+                accuracy_matrix[feedbackGiver.id][user.id] = 0
+                loss_matrix[feedbackGiver.id][user.id] = 65535
+                prev_loss, prev_acc = training.test(pm.global_model, valloader, DEVICE)
+                prev_accs[feedbackGiver.id] = round(prev_acc * 100 * scalar)
+                prev_losses[feedbackGiver.id] = safe_scale(prev_loss, scalar, MAX_UINT16_SIZE)
+
+            elif free_att:
+                feedback_matrix[feedbackGiver.id][user.id] = 0
+                if accuracy_last_round == -1:
+                    loss_last_round, accuracy_last_round = training.test(pm.global_model, valloader, DEVICE)
+                    accuracy_last_round = round(accuracy_last_round * 100 * scalar)
+                    loss_last_round = safe_scale(loss_last_round, scalar, MAX_UINT16_SIZE)
+                accuracy_matrix[feedbackGiver.id][user.id] = accuracy_last_round
+                loss_matrix[feedbackGiver.id][user.id] = min(loss_last_round, MAX_UINT16_SIZE)
+                prev_accs[feedbackGiver.id] = accuracy_last_round
+                prev_losses[feedbackGiver.id] = loss_last_round
+
+            elif user in feedbackGiver.cheater:
+                feedback_matrix[feedbackGiver.id][user.id] = -1
+                accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100 * scalar)
+                loss_matrix[feedbackGiver.id][user.id] = safe_scale(loss, scalar, MAX_UINT16_SIZE)
+                prev_accs[feedbackGiver.id] = prev_acc
+                prev_losses[feedbackGiver.id] = prev_loss
+
+            elif accuracy > feedbackGiver.currentAcc - 0.07:  # 7% Worse
+                feedback_matrix[feedbackGiver.id][user.id] = 1
+                accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100 * scalar)
+                loss_matrix[feedbackGiver.id][user.id] = safe_scale(loss, scalar, MAX_UINT16_SIZE)
+                prev_accs[feedbackGiver.id] = prev_acc
+                prev_losses[feedbackGiver.id] = prev_loss
+
+            elif accuracy > feedbackGiver.currentAcc - 0.14:  # 14% Worse
+                feedback_matrix[feedbackGiver.id][user.id] = 0
+                accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100 * scalar)
+                loss_matrix[feedbackGiver.id][user.id] = safe_scale(loss, scalar, MAX_UINT16_SIZE)
+                prev_accs[feedbackGiver.id] = prev_acc
+                prev_losses[feedbackGiver.id] = prev_loss
+
+            else:
+                feedback_matrix[feedbackGiver.id][user.id] = -1
+                accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100 * scalar)
+                loss_matrix[feedbackGiver.id][user.id] = safe_scale(loss, scalar, MAX_UINT16_SIZE)
+                prev_accs[feedbackGiver.id] = prev_acc
+                prev_losses[feedbackGiver.id] = prev_loss
+
+            if pm.force_merge_all:
+                feedback_matrix[feedbackGiver.id][user.id] = 0
+
+        # Reset
+        feedbackGiver.userToEvaluate = []
+    # acc_mat = [[x / 10 for x in sublist] for sublist in accuracy_matrix]
+    # loss_mat = [[x / 10 for x in sublist] for sublist in loss_matrix]
+    # prev_accs_divided = [x / 10 for x in prev_accs]
+    # prev_losses_divided = [x / 10 for x in prev_losses]
+
+    # print("FEEDBACK MATRIX:")
+    # print(feedback_matrix)
+    # print("-----------------------------------------------------------------------------------")
+    # print("ACCURACY MATRIX:")
+    # print(accuracy_matrix)
+    # print("-----------------------------------------------------------------------------------")
+    # print("LOSS MATRIX:")
+    # print(loss_matrix)
+    # print("-----------------------------------------------------------------------------------")
+    # print("PREVIOUS ACCURACIES:")
+    # print(prev_accs)
+    # print("-----------------------------------------------------------------------------------")
+    # print("PREVIOUS LOSSES:")
+    # print(prev_losses)
+    # print("-----------------------------------------------------------------------------------")
+
+    return feedback_matrix, accuracy_matrix, loss_matrix, prev_accs, prev_losses
+
+# Same as lines 294-296,306 in original code.
+def finalize_user_evaluation(pm, user):  # pragma: no cover
+    loss, acc = training.test(user.model, pm.test, DEVICE)
+    user._accuracy.append(acc) # Line 295 in original code
+    user._loss.append(loss) # Line 296 in original code
+    user.hashedModel = get_hash(user.model.state_dict())
 
 
-def print_system_capabilities(num_gpus: int):
-    logical_cores = os.cpu_count() or 1
-    physical_cores = psutil.cpu_count(logical=False) or logical_cores
-    memory = psutil.virtual_memory()
-    available_gb = memory.available / (1024 ** 3)
-    total_gb = memory.total / (1024 ** 3)
+def safe_scale(value, scalar, max_val):
+    if not math.isfinite(value):
+        return max_val
 
-    print(
-        yellow(
-            "Hardware: "
-            f"GPUs={num_gpus}; "
-            f"CPU cores={physical_cores} physical/{logical_cores} logical; "
-            f"RAM={available_gb:.2f}/{total_gb:.2f} GiB available"
-        )
-    )
+    scaled = value * scalar
 
+    if not math.isfinite(scaled):
+        return max_val
 
-def print_cpu_pool_decision(decision):
-    if not decision:
-        return
-
-    if decision["override"] is not None:
-        print(
-            yellow(
-                "CPU worker sizing: "
-                f"FEDCBA_CPU_WORKERS={decision['override']}, "
-                f"participants={decision['participants']} -> "
-                f"workers={decision['resolved']}"
-            )
-        )
-        return
-
-    print(
-        yellow(
-            "CPU worker sizing: "
-            f"participants={decision['participants']}, "
-            f"core_cap={decision['core_cap']}, "
-            f"ram_cap={decision['ram_cap']} "
-            f"({decision['available_gb']:.2f} GiB available) -> "
-            f"workers={decision['resolved']}"
-        )
-    )
+    return min(round(scaled), max_val)
