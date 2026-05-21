@@ -86,6 +86,26 @@ contract OpenFLModelHarness is OpenFLModel {
     function _getUserGRSAtAddress(address userAddr) public view returns (uint) {
         return users[userAddr].globalReputationScore;
     }
+
+    function _getRoundReputation(address user) public view returns (int256) {
+        return users[user].roundReputation;
+    }
+
+    function _getNrOfRoundsParticipated(address user) public view returns (uint8) {
+        return users[user].nrOfRoundsParticipated;
+    }
+
+    function _getNrOfVotesFromUser(address user) public view returns (uint8) {
+        return users[user].nrOfVotesFromUser;
+    }
+
+    function _getIsRegistered(address user) public view returns (bool) {
+        return users[user].isRegistered;
+    }
+
+    function _getWhitelistedForRewards(address user) public view returns (bool) {
+        return users[user].whitelistedForRewards;
+    }
 }
 
 contract OpenFLModelHarnessTest is Test {
@@ -161,9 +181,16 @@ contract OpenFLModelHarnessTest is Test {
 
         model.settle();
 
-        emit log_named_uint("a_rep", model._getUserGRSAtAddress(a));
-        emit log_named_uint("b_rep", model._getUserGRSAtAddress(b));
-        emit log_named_uint("c_rep", model._getUserGRSAtAddress(c));
+        assertEq(model.round(), 3);
+        assertEq(model.rewardLeft(), REWARD - model.rewardPerRound());
+        assertLt(model._getUserGRSAtAddress(a), reps[0]);
+        assertLt(model._getUserGRSAtAddress(b), reps[1]);
+        assertGt(model._getUserGRSAtAddress(c), reps[2]);
+
+        assertEq(model._getRoundReputation(a), 0);
+        assertEq(model._getNrOfRoundsParticipated(a), 2);
+        assertEq(model._getNrOfVotesFromUser(a), 0);
+        assertFalse(model._getWhitelistedForRewards(a));
     }
 
     function testSettersAndGetters() public {
