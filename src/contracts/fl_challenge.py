@@ -708,6 +708,7 @@ class FLChallenge(ConnectionHelper):
 
 
     def collect_events_and_print_round_summary(self, receipt, _current_round_no, contributors):
+        users_disqulified_this_round = []
         for user in self.pytorch_model.participants + self.pytorch_model.disqualified:
             user.temporary_grs_evaluation = None
 
@@ -825,9 +826,11 @@ class FLChallenge(ConnectionHelper):
                 # Mark and remove disqualified users
                 for user in list(self.pytorch_model.participants):  # safe remove
                     if args["victim"] == user.address:
+                        print(b(f"User {user.address[0:16]}... disqualified. He lost all GRS and now has {args['newReputation']:,} GRS"))
                         user.disqualified = True
                         self.pytorch_model.disqualified.append(user)
                         self.pytorch_model.participants.remove(user)
+                        users_disqulified_this_round.append(user)
 
                 print(red(f"USER @ {args['victim']}"))
                 print(red(f"ROUND SCORE:      {args['roundScore']:,}"))
@@ -844,7 +847,7 @@ class FLChallenge(ConnectionHelper):
         print(b("{:>20}  {:>25} -> {:>25} -> {:>25}".format("address" + "...", "previous grs",
                                                             "evaluation votes grs",
                                                             "final grs")))
-        for user in self.pytorch_model.participants + self.pytorch_model.disqualified:
+        for user in self.pytorch_model.participants + users_disqulified_this_round:
             user._globalrep.append(self.get_global_reputation_of_user(user.address))
             eval_grs = user.temporary_grs_evaluation
             if eval_grs is None:
@@ -853,6 +856,13 @@ class FLChallenge(ConnectionHelper):
                 j = f"{eval_grs:,.0f}"
             i, k = user._globalrep[-2:]
             print(b("{:>20}  {:>25,.0f} -> {:>25} -> {:>25,.0f}".format(user.address[0:16] + "...", i, j, k)))
+
+        for user in self.pytorch_model.disqualified:
+            if user.left_system:
+                print(b(f"{user.address[0:16]} exited the system previously and has no GRS update. He left with {user._globalrep[-1]:,.0f} WEI"))
+            else:
+                if user not in users_disqulified_this_round:
+                    print(b(f"{user.address[0:16]} was disqualified previously."))
 
 
     def get_round_rewards(self, receipt): # pragma: openfl
@@ -1037,15 +1047,6 @@ class FLChallenge(ConnectionHelper):
                     logging.log_warning(self, msg=f"Global model has not changed for 3 rounds -- Stopping run", round=_current_round)
                     break
 
-
-
-
-            # print(f"Number of Shapley Axioms violated: {len(contribution.runtime_warnings)}\n")
-            # if contribution.runtime_warnings:
-            #     print("\n" + red("!" * 30 + " SHAPLEY WARNINGS " + "!" * 30))
-            #     for warn in contribution.runtime_warnings:
-            #         print(colored(warn, 'yellow'))
-            #     print(red("!" * 78))
             contribution.print_shapley_warnings()
 
             self.writer.writeComment(f"$gasCosts${self.gas_feedback},{self.gas_register},{self.gas_slot},{self.gas_weights},{self.gas_close},{self.gas_deploy},{self.gas_exit}")

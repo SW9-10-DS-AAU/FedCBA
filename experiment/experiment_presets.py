@@ -640,7 +640,7 @@ PRESETS = {
         number_of_runs=10
     ),
 
-    "p10_MAIN_GRAPHS_comparing_aggregation_rules_mnist": FullPreset(
+    "comp_agg_mnist": FullPreset( # tidligere filnavn: p10_MAIN_GRAPHS_comparing_aggregation_rules_mnist
         # defaults
         fork=True,
         reward=int(1e18),
@@ -680,6 +680,49 @@ PRESETS = {
 
         # experiment-specific
         aggregation_rule=["FedAVG", "positives_only", "plus_one_normalize", "binary_switch[positives_only, plus_one_normalize]", "partial_switch[retro, positives_only, plus_one_normalize]"],
+        number_of_runs=10,
+    ),
+
+"num_rounds_mnist": FullPreset(
+        # defaults
+        fork=True,
+        reward=int(1e18),
+        standard_buy_in=int(1e18),
+        min_buy_in=int(1e18),
+        max_buy_in=int(1e18),
+        first_round_fee=0, # NOT DEFAULT! experiment-specific??
+        punish_factor=3,
+        punish_factor_contrib=3,
+        number_of_inactive_contributors=0,
+        force_merge_all=False,
+        use_nobody_is_kicked=False,
+
+        # always this
+        use_outlier_detection=[True],
+        contribution_score_strategy=["loss_only"],
+        data_distribution=["random_split"],
+        dirichlet_alpha=None,
+
+        # best freerider
+        freerider_start_round=[3],
+        freerider_noise_scale=[0],
+        freerider_attack_type=["delta_weight"],
+
+        # best malicious
+        malicious_start_round=None,
+        malicious_noise_scale=[0.01],
+        malicious_attack_type=["byzantine"],
+
+        # dataset-specific
+        number_of_good_contributors=4,
+        number_of_bad_contributors=1,
+        number_of_freerider_contributors=1,
+        minimum_rounds=20, # NOT USUAL FOR MNIST! experiment-specific
+        epochs=1,
+        batch_size=32,
+
+        # experiment-specific
+        aggregation_rule=["FedAVG", "positives_only", "plus_one_normalize"],
         number_of_runs=10,
     ),
 }

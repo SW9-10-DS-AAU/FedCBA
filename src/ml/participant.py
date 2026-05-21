@@ -33,6 +33,8 @@ class Participant:
         self.address = None
         self.privateKey = None
         self.isRegistered = False
+        self.left_system = False
+
         # Old:  self.collateral = _default_collateral + np.random.randint(0,int(_max_collateral-_default_collateral))
         # ---- collateral (handles huge ranges; avoids int32 cap) ----
         lo = int(_default_collateral)
