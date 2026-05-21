@@ -717,7 +717,7 @@ PRESETS = {
         number_of_good_contributors=4,
         number_of_bad_contributors=1,
         number_of_freerider_contributors=1,
-        minimum_rounds=200, # NOT USUAL FOR MNIST! experiment-specific
+        minimum_rounds=20, # NOT USUAL FOR MNIST! experiment-specific
         epochs=1,
         batch_size=32,
 
