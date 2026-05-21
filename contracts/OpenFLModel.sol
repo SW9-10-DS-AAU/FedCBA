@@ -739,6 +739,7 @@ contract OpenFLModel {
                 rewardLeft = 0;
             }
         } else if (remaining == 1) {
+            // Only one user would remain, so give all rewardLeft to that user and exit everyone else who wants to leave
             if (rewardLeft > 0 && registeredWantToLeave > 0) {
                 uint share = rewardLeft;
                 for (uint i = 0; i < participants.length; i++) {
@@ -755,6 +756,7 @@ contract OpenFLModel {
                 rewardLeft = 0;
             }
         } else {
+            // Enough users would remain, so just exit those who want to leave without distributing rewardLeft
             for (uint i = 0; i < participants.length; i++) {
                 User storage user = users[participants[i]];
                 if (user.isRegistered && wantsToLeave[user.addr]) {
