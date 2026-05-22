@@ -619,7 +619,6 @@ class FLChallenge(ConnectionHelper):
         for u in self.pytorch_model.participants:
             if u.attitude != "good": continue
 
-
             grs_current        = self.model.functions.grs(current_round, u.address).call()
             grs_two_rounds_ago = self.model.functions.grs(current_round-2, u.address).call() if current_round != 2 else u._globalrep[0]
 
@@ -657,7 +656,6 @@ class FLChallenge(ConnectionHelper):
             txHash = w3.eth.send_raw_transaction(signed.raw_transaction)
 
         receipt = self.w3.eth.wait_for_transaction_receipt(txHash, timeout=600, poll_latency=1)
-
 
         self.gas_exit.append(receipt["gasUsed"])
         self.txHashes.append(("processExits", receipt["transactionHash"].hex(), receipt["gasUsed"]))
