@@ -381,7 +381,6 @@ contract OpenFLModel {
         for (uint i = 0; i < participants.length; i++) {
             User storage user = users[participants[i]];
             if (user.isRegistered && !user.isDisqualified) {
-                require(user.roundReputation < 0, "User round reputation is not negative in makeRoundReputationsPositive");
                 user.roundReputation = - user.roundReputation;
             }
         }
