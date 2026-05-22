@@ -278,8 +278,7 @@ class PytorchModel:
                     device_id,
                     self.DATASET,
                     self.BATCHSIZE,
-                    PIN_MEMORY,
-                    False
+                    PIN_MEMORY
                 )
                 results.append(result)
             else:  # If user's behaviour !good, skip Training.
@@ -304,16 +303,15 @@ class PytorchModel:
             if user.attitude == "good":  # train
                 async_results.append(self._gpu_pools[device_id].submit(
                     training.train_user_proc,
-                    user.id,
-                    sd_cpu,
-                    user.train.dataset,
-                    user.val.dataset,
-                    self.EPOCHS,
-                    device_id,
-                    self.DATASET,
-                    self.BATCHSIZE,
-                    PIN_MEMORY,
-                    False,
+                    (user.id,
+                     sd_cpu,
+                     user.train.dataset,
+                     user.val.dataset,
+                     self.EPOCHS,
+                     device_id,
+                     self.DATASET,
+                     self.BATCHSIZE,
+                     PIN_MEMORY)
                 ))
             else:  # If user's behaviour !good, skip Training.
                 # Skips apply_training_results() - goes directly to evaluation. Corresponds to lines 261-277 in original code.
