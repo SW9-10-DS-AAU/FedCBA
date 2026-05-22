@@ -278,8 +278,7 @@ class PytorchModel:
                     device_id,
                     self.DATASET,
                     self.BATCHSIZE,
-                    PIN_MEMORY,
-                    False
+                    PIN_MEMORY
                 )
                 results.append(result)
             else:  # If user's behaviour !good, skip Training.
@@ -312,8 +311,7 @@ class PytorchModel:
                      device_id,
                      self.DATASET,
                      self.BATCHSIZE,
-                     PIN_MEMORY,
-                     False)
+                     PIN_MEMORY)
                 ))
             else:  # If user's behaviour !good, skip Training.
                 # Skips apply_training_results() - goes directly to evaluation. Corresponds to lines 261-277 in original code.
@@ -358,8 +356,7 @@ class PytorchModel:
                      device_id,
                      self.DATASET,
                      self.BATCHSIZE,
-                     PIN_MEMORY,
-                     False)
+                     PIN_MEMORY)
                 ))
             else:  # If user's behaviour !good, skip Training.
                 # Skips apply_training_results() - goes directly to evaluation. Corresponds to lines 261-277 in original code.

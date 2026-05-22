@@ -89,8 +89,7 @@ def test(net, testloader: torch.utils.data.DataLoader, device: torch.device) -> 
     return loss, accuracy
 
 
-def train_user_proc(user_id, model_state, train_ds, val_ds, epochs, device_id, dataset, batchsize, pin_memory,
-                    shuffle):
+def train_user_proc(user_id, model_state, train_ds, val_ds, epochs, device_id, dataset, batchsize, pin_memory):
     # Multi-GPU Support
     # Select device
     use_cuda = torch.cuda.is_available()
@@ -106,9 +105,9 @@ def train_user_proc(user_id, model_state, train_ds, val_ds, epochs, device_id, d
     model.to(device)
 
     # Rebuild dataloaders inside the process
-    train_loader = DataLoader(train_ds, batch_size=batchsize, shuffle=shuffle,
+    train_loader = DataLoader(train_ds, batch_size=batchsize, shuffle=True,
                               pin_memory=pin_memory)
-    val_loader = DataLoader(val_ds, batch_size=batchsize, shuffle=shuffle,
+    val_loader = DataLoader(val_ds, batch_size=batchsize, shuffle=False,
                             pin_memory=pin_memory)
 
     train(model, train_loader, epochs, device)  # Line 285 in original code
