@@ -140,8 +140,8 @@ def train_user_proc(user_id, model_state, train_ds, val_ds, epochs, device_id, d
 
     # Rebuild dataloaders inside the process
     train_loader = DataLoader(train_ds, batch_size=batchsize, shuffle=True,
-                              pin_memory=pin_memory, num_workers=num_workers,
-                              persistent_workers=persistent_workers, prefetch_factor=4 if num_workers > 0 else None)
+                            pin_memory=pin_memory, num_workers=num_workers,
+                            persistent_workers=persistent_workers, prefetch_factor=4 if num_workers > 0 else None)
     val_loader = DataLoader(val_ds, batch_size=batchsize, shuffle=False,
                             pin_memory=pin_memory, num_workers=0,
                             persistent_workers=False)
