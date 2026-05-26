@@ -1330,6 +1330,10 @@ class TestReporting:
             "EvaluationVotingReward": [],
         }
 
+        fl_challenge.pytorch_model.disqualified = []
+        for user in fl_challenge.pytorch_model.participants:
+            user._globalrep = [1000]
+
         with patch.object(fl_challenge, 'get_events', return_value=expected_events):
             fl_challenge.collect_events_and_print_round_summary(mock_receipt, _current_round_no=1, contributors=5)
 
