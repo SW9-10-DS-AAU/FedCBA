@@ -1008,6 +1008,11 @@ class FLChallenge(ConnectionHelper):
 
                 _round_time = time.perf_counter() - _round_start
 
+
+                self.check_and_exit_losing_users()
+                self._process_exits()
+
+
                 logging.log_round(self,
                     _current_round, _round_time,
                     accuracy_matrix, loss_matrix, prev_accs, prev_losses,
@@ -1035,9 +1040,6 @@ class FLChallenge(ConnectionHelper):
                     "userStatuses": [user.getStatus() for user in self.pytorch_model.participants],
                     "GasTransactions": roundTx
                     })
-
-                self.check_and_exit_losing_users()
-                self._process_exits()
 
                 _current_round = self.pytorch_model.round # Update current round to match with incremented round in close_round()
 
