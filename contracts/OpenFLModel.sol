@@ -724,7 +724,7 @@ contract OpenFLModel {
 
         uint remaining = totalRegistered - registeredWantToLeave;
 
-        require(rewardLeft > 0, "No rewards left");
+        if (round != min_rounds) {require(rewardLeft > 0, "No rewards left");}
 
         if (remaining == 0) {
             // Too few users would remain — distribute rewardLeft to all and exit everyone
