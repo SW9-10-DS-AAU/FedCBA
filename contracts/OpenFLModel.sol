@@ -690,7 +690,7 @@ contract OpenFLModel {
 
         if (val > 0) {
             (bool success,) = payable(addr).call{value: val}("");
-            require(success, "Transfer failed");
+            require(success, "TF");
         }
     }
 
@@ -701,8 +701,8 @@ contract OpenFLModel {
 
 
     function markWantsToLeave() public {
-        require(users[msg.sender].isRegistered, "sender not registered");
-        require(!wantsToLeave[msg.sender], "already leave registered");
+        require(users[msg.sender].isRegistered, "SNR in mark");
+        require(!wantsToLeave[msg.sender], "ALR in mark");
         wantsToLeave[msg.sender] = true;
     }
 
@@ -718,9 +718,21 @@ contract OpenFLModel {
             }
         }
 
-        if (registeredWantToLeave == 0) return;
+        if (totalRegistered == 1) {
+            // Only one user is registered, so just exit that user and give them all the rewardLeft
+            for (uint i = 0; i < participants.length; i++) {
+                User storage user = users[participants[i]];
+                if (user.isRegistered) {
+                    user.globalReputationScore += rewardLeft;
+                    _exitUser(user.addr);
+                    rewardLeft = 0;
+                    break;
+                }
+            }
+            return;
+        }
 
-        require(registeredWantToLeave <= totalRegistered, "All users want to leave, call exitModel instead");
+        if (registeredWantToLeave == 0) return;
 
         uint remaining = totalRegistered - registeredWantToLeave;
 
