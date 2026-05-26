@@ -141,6 +141,12 @@ contract LeaveExitTest is Test {
         vm.prank(user3); model.register{value: COLLATERAL}();
     }
 
+    function _registerOneUser() internal {
+        user1 = makeAddr("user1");
+
+        vm.deal(user1, COLLATERAL);
+    }
+
 
     // ---------------------------------------------------------------------
     // Part 1: processExits branches  (OpenFLModel.sol:710-765)
@@ -160,6 +166,25 @@ contract LeaveExitTest is Test {
     //   - model.nrOfActiveParticipants() == 0
     //   - none of them isRegistered anymore
     //   - 3 UserExited events emitted
+    function testProcessExits_totalRegisteredOne_distributesRewardLeftAndExitsEveryone() public {
+        _registerOneUser()();
+
+        model._setWantsToLeave(user1, false);
+
+        model._setRewardLeft(3 ether);
+
+        vm.deal(address (model), 3 ether + COLLATERAL * 3); // fund the model to cover all exits
+
+        model.processExits();
+
+        assert(model._getGRS(user1) == 0);
+
+        assert(model.rewardLeft() == 0);
+        assert(model.nrOfActiveParticipants() == 0);
+        assert(!model._isRegistered(user1));
+    }
+
+
     function testProcessExits_remainingZero_distributesRewardLeftAndExitsEveryone() public {
         _registerThreeUsers();
 
