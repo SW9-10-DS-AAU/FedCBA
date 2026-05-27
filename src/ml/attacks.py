@@ -13,7 +13,7 @@ def manipulate(model, scale: float = 1.0) -> OrderedDict:
     with torch.no_grad():
         for k, v in model.state_dict().items():
             t = v.clone()
-            if t.is_floating_point():
+            if t.is_floating_point(): # Only floats are actual model parameters and need to be modified. Ints are adminstrative counters
                 # uniform noise in [-scale, scale]
                 noise = torch.empty_like(t).uniform_(-scale, scale)
                 t.add_(noise)
@@ -33,7 +33,7 @@ def add_noise(model, offset_from_end: int = 5) -> OrderedDict:
     with torch.no_grad():
         for idx, (k, v) in enumerate(items):
             t = v.clone()
-            if t.is_floating_point() and idx == target_idx:
+            if t.is_floating_point() and idx == target_idx: # Only floats are actual model parameters and need to be modified. Ints are adminstrative counters
                 # Match original magnitude: 9e-6 or 1e-5
                 eps = 1e-5 if random.randint(9, 10) == 10 else 9e-6
                 t.add_(eps)  # in-place scalar add on the same device (CPU/GPU)
@@ -151,7 +151,7 @@ def byzantine_attack(pm, user):
 
         for key in current_weights.keys():
             value = current_weights[key]
-            if value.is_floating_point():
+            if value.is_floating_point(): # Only floats are actual model parameters and need to be modified. Ints are adminstrative counters
                 # Trajectory: direction the global model has been moving
                 learning_direction = current_weights[key] - prev_weights[key]
                 # Push against the trajectory to reverse learning
@@ -183,7 +183,7 @@ def delta_weight_attack(pm, user):
 
         for key in current_weights.keys():
             value = current_weights[key]
-            if value.is_floating_point():
+            if value.is_floating_point(): # Only floats are actual model parameters and need to be modified. Ints are adminstrative counters
                 fake_gradient = prev_weights[key] - value  # G_fake = M_{j-1} - M_j
                 crafted_weights[key] = value + fake_gradient  # = M_{j-1}
             else:
