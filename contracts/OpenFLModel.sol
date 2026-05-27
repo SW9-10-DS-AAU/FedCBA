@@ -381,7 +381,7 @@ contract OpenFLModel {
         for (uint i = 0; i < participants.length; i++) {
             User storage user = users[participants[i]];
             if (user.isRegistered && !user.isDisqualified) {
-                user.roundReputation = - user.roundReputation;
+                user.roundReputation = 1;
             }
         }
     }
