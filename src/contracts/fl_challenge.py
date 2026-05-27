@@ -617,7 +617,7 @@ class FLChallenge(ConnectionHelper):
         threshold = int(self.MIN_BUY_IN) // self.PUNISHMENT_FACTOR
 
         for u in self.pytorch_model.participants:
-            if u.attitude != "good": continue
+            if u.futureAttitude != "good": continue
 
             grs_current        = self.model.functions.grs(current_round, u.address).call()
             grs_two_rounds_ago = self.model.functions.grs(current_round-2, u.address).call() if current_round != 2 else u._globalrep[0]
