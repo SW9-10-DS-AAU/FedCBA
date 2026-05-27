@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from .uuid_extractor import extract_uuid_from_filename
+from .aggregations import agg_grs_by_role, compute_state_percentages
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -39,7 +40,8 @@ BEHAVIOR_COLORS = {
     "good":      "#2196F3",
     "bad":       "#d62728",
     "freerider": "#9467bd",
-    "inactive":  "#7f7f7f",
+    "inactive":  "#90EE90",
+    "good_exited": "#A3D9A5",
 }
 
 STRATEGY_COLORS = {
@@ -419,6 +421,86 @@ def plot_grs_by_user(
     fig._uuids = list(grs_users["experiment_id"].unique())
     fig.tight_layout()
     return fig
+
+def plot_grs_by_role_by_aggregation_rule(data, metadata, res):
+    for rule, metadata_group in metadata.groupby("aggregation_rule"):
+
+        experiment_ids = metadata_group["experiment_id"].unique()
+
+        data_group = data[
+            data["experiment_id"].isin(experiment_ids)
+        ]
+
+        aggregated = agg_grs_by_role(
+            data_group,
+            metadata_group
+        )
+
+        fig = plot_grs_by_role(aggregated)
+
+        ax = fig.axes[0]
+
+        # users dataframe from your experiment results
+        users_group = res["users"][
+            res["users"]["experiment_id"].isin(experiment_ids)
+        ]
+
+        pct = compute_state_percentages(users_group)
+
+        ax2 = ax.twinx()
+
+        width = 0.1
+
+        roles = {
+            "bad": "disqualified_pct",
+            "freerider": "disqualified_pct",
+            "good": "disqualified_pct",
+        }
+
+        offsets = {
+            "bad": -1.5 * width,
+            "freerider": -0.5 * width,
+            "good": 0.5 * width,
+            "good_exited": 1.5 * width,
+        }
+
+        for role, metric in roles.items():
+            tmp = pct[pct["role"] == role]
+            color = BEHAVIOR_COLORS[role]
+
+            ax2.bar(
+                tmp["round"] + offsets[role],
+                tmp[metric],
+                width=width,
+                alpha=0.4,
+                label=f"{ROLE_LABELS[role]}: Disqualified",
+                color=color
+            )
+
+        tmp_good_exited = pct[pct["role"] == "good"]
+        ax2.bar(
+            tmp_good_exited["round"] + offsets["good_exited"],
+            tmp_good_exited["exited_pct"],
+            width=width,
+            alpha=0.4,
+            label="Honest: Exited",
+            color=BEHAVIOR_COLORS["good_exited"]
+        )
+
+        ax2.set_ylim(0, 160)
+        ax2.set_yticks([0, 20, 40, 60, 80, 100])
+        ax2.set_ylabel("Exited or Disqualified (%)")
+
+        ax.legend(loc="upper left")
+        ax2.legend(loc="upper right", bbox_to_anchor=(1, 1))
+
+        fig.suptitle(f"Aggregation Rule: {rule}", y=1.05)
+
+        # print(
+        #     f"Rule={rule}, "
+        #     f"experiments={len(experiment_ids)}, "
+        #     f"users={len(data_group)}"
+        # )
 
 
 def plot_global_acc_by_aggregation_strategy(acc_by_strategy: pd.DataFrame, error_band: str = "ci") -> plt.Figure:
