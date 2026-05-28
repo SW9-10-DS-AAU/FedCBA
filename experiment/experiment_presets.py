@@ -683,7 +683,7 @@ PRESETS = {
         number_of_runs=10,
     ),
 
-    "num_rounds_mnist": FullPreset( # på spark: 27-05-26. Teams?  Grafer?
+    "full_system_mnist": FullPreset( # på spark: 27-05-26. Teams?  Grafer?
         # defaults
         fork=True,
         reward=int(1e18),
@@ -726,7 +726,7 @@ PRESETS = {
         number_of_runs=10,
     ),
 
-    "num_rounds_cifar": FullPreset(  # På spark: ??-??-??
+    "full_system_cifar": FullPreset(  # På spark: 28-05-06
         # defaults
         fork=True,
         reward=int(1e18),
