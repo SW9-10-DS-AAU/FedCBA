@@ -1,6 +1,6 @@
 from .ExperimentLogger import ExperimentLogger
 from .loader import RunData, load_run, load_runs
-from .transform import normalize_run, normalize_runs, merge_runs
+from .transform import normalize_run, normalize_runs, merge_runs, forward_fill_users
 from .uuid_extractor import extract_uuids_from_filenames
 from .aggregations import agg_grs_by_role, compute_state_percentages
 
