@@ -144,8 +144,6 @@ def compute_state_percentages(users_df):
     return pd.DataFrame(results)
 
 
-
-
 def agg_grs_by_role(merged_users: pd.DataFrame, metadata: pd.DataFrame) -> pd.DataFrame:
     """
     Two-stage aggregation of GRS by role and round.
