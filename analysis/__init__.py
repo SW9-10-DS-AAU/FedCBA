@@ -21,7 +21,6 @@ __all__ = [
     "load_runs",
     "normalize_run",
     "normalize_runs",
-    "forward_fill_users",
     "merge_runs",
     "extract_uuids_from_filenames",
     "aggregations",
