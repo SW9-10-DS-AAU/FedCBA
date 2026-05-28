@@ -121,6 +121,30 @@ def _require_consistent_activation(merged_users: pd.DataFrame, metadata: pd.Data
                 "Use agg_grs_by_role_relative() to aggregate across different activation configs."
             )
 
+def compute_state_percentages(users_df):
+    results = []
+
+    for role in ["bad", "good", "freerider"]:
+        role_df = users_df[users_df["role"] == role]
+        round_0_active = role_df[(role_df["round"] == 0) & (role_df["state"] == "active")]["user_id"].count()
+
+        for r in role_df["round"].unique():
+            active_count = role_df[(role_df["round"] == r) & (role_df["state"] == "active")]["user_id"].count()
+            disq_count = role_df[(role_df["round"] == r) & (role_df["state"] == "disqualified")]["user_id"].count()
+            exited_count = role_df[(role_df["round"] == r) & (role_df["state"] == "exited")]["user_id"].count()
+
+            results.append({
+                "round": r,
+                "role": role,
+                "active_pct": active_count / round_0_active * 100,
+                "disqualified_pct": disq_count / round_0_active * 100,
+                "exited_pct": exited_count / round_0_active * 100
+            })
+
+    return pd.DataFrame(results)
+
+
+
 
 def agg_grs_by_role(merged_users: pd.DataFrame, metadata: pd.DataFrame) -> pd.DataFrame:
     """

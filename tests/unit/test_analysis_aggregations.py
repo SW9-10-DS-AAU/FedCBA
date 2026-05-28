@@ -313,3 +313,37 @@ class TestAggRoundKickedByStrategy:
         result = agg.agg_round_kicked_by_strategy(users, meta)
         assert (result["low_err"] >= 0).all()
         assert (result["high_err"] >= 0).all()
+
+
+# ---------------------------------------------------------------------------
+# Compute State Percentages
+# ---------------------------------------------------------------------------
+
+class TestComputeStatePercentages:
+
+    def _users(self):
+        # 4 "good" users active at round 0; one disqualified at round 1
+        rows = []
+        for uid in range(4):
+            rows.append({"experiment_id": "A", "round": 0, "user_id": uid, "role": "good", "state": "active"})
+        for uid in range(3):
+            rows.append({"experiment_id": "A", "round": 1, "user_id": uid, "role": "good", "state": "active"})
+        rows.append({"experiment_id": "A", "round": 1, "user_id": 3, "role": "good", "state": "disqualified"})
+        return pd.DataFrame(rows)
+
+    def test_percentages(self):
+        result = agg.compute_state_percentages(self._users())
+        r1 = result[(result["role"] == "good") & (result["round"] == 1)].iloc[0]
+        assert r1["active_pct"] == pytest.approx(75.0)  # 3/4
+        assert r1["disqualified_pct"] == pytest.approx(25.0)  # 1/4
+
+    def test_absent_role_no_div_by_zero(self):
+        # No "freerider"/"bad" rows → must not produce inf/NaN, just skip them
+        result = agg.compute_state_percentages(self._users())
+        assert result["role"].unique().tolist() == ["good"]
+        assert result[["active_pct", "disqualified_pct", "exited_pct"]].notna().all().all()
+
+    def test_rounds_sorted(self):
+        result = agg.compute_state_percentages(self._users())
+        good = result[result["role"] == "good"]["round"].tolist()
+        assert good == sorted(good)
