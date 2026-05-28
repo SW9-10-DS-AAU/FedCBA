@@ -423,6 +423,8 @@ def plot_grs_by_user(
     return fig
 
 def plot_grs_by_role_by_aggregation_rule(data, metadata, res):
+    figs = {}
+
     for rule, metadata_group in metadata.groupby("aggregation_rule"):
 
         experiment_ids = metadata_group["experiment_id"].unique()
@@ -501,6 +503,9 @@ def plot_grs_by_role_by_aggregation_rule(data, metadata, res):
         #     f"experiments={len(experiment_ids)}, "
         #     f"users={len(data_group)}"
         # )
+
+        figs[rule] = fig
+    return figs
 
 
 def plot_global_acc_by_aggregation_strategy(acc_by_strategy: pd.DataFrame, error_band: str = "ci") -> plt.Figure:
