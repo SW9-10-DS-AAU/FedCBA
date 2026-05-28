@@ -772,5 +772,4 @@ PRESETS = {
     ),
 }
 
-
 # If you want to overwrite a value from the default preset, you need to create a FullPreset class inside PRESETS.
