@@ -52,7 +52,7 @@ PRESETS = {
         standard_buy_in=int(1e18),
         min_buy_in=int(1e18),
         max_buy_in=int(1e18),
-        first_round_fee=50,
+        first_round_fee=0,
         punish_factor=3,
         punish_factor_contrib=3,
         force_merge_all=False,
@@ -387,7 +387,7 @@ PRESETS = {
         batch_size=32,
         use_outlier_detection=[True],
         contribution_score_strategy=["loss_only"],
-        freerider_noise_scale=[0.001, 0.01, 0.1, 1],
+        freerider_noise_scale=[0.001, 0.01, 0.1, 1, 10],
         freerider_start_round=[3],
         freerider_attack_type=["noise"],
         malicious_noise_scale=None,
@@ -396,7 +396,7 @@ PRESETS = {
         aggregation_rule=["FedAVG"],
         data_distribution=["random_split_42"],
         dirichlet_alpha=None,
-        number_of_runs=3,
+        number_of_runs=10,
     ),
 
     "p10_freerider_noise_cifar": ExperimentPreset(
@@ -438,7 +438,7 @@ PRESETS = {
         aggregation_rule=["FedAVG"],
         data_distribution=["random_split_42"],
         dirichlet_alpha=None,
-        number_of_runs=3,
+        number_of_runs=10,
     ),
 
     "p10_freerider_delta_weight_cifar": ExperimentPreset(
@@ -474,13 +474,13 @@ PRESETS = {
         freerider_noise_scale=None,
         freerider_start_round=None,
         freerider_attack_type=None,
-        malicious_noise_scale=[0.01, 0.1, 1.0, 10.0],
+        malicious_noise_scale=[0.001, 0.01, 0.1, 1.0, 10.0],
         malicious_start_round=[3],
         malicious_attack_type=["noise", "byzantine"],
         aggregation_rule=["FedAVG"],
         data_distribution=["random_split_42"],
         dirichlet_alpha=None,
-        number_of_runs=3,
+        number_of_runs=10,
     ),
 
     "p10_malicious_noise_byzantine_cifar": ExperimentPreset(
