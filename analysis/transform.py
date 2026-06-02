@@ -56,6 +56,7 @@ _EVAL_VOTE_LOSS_COLS = ["loss_vote", "avg_loss_true_value"]
 # Metadata keys stored in the "metadata" lookup table returned by merge_runs.
 # Data tables only carry experiment_id; join on it when you need config values.
 MERGE_META_KEYS = [
+    "timestamp",
     "dataset",
     "contribution_score_strategy",
     "use_outlier_detection",
@@ -302,3 +303,33 @@ def merge_runs(runs: list[RunData]) -> dict[str, pd.DataFrame]:
         "evaluation_rewards": _concat(evaluation_rewards),
         "evaluation_votes":   _concat(evaluation_votes),
     }
+
+# def forward_fill_users(users: pd.DataFrame) -> pd.DataFrame: # We might need this later
+#     # Different number of users in experiments. Some users may drop out mid-experiment (state = "disqualified" or "exited").
+#
+#     users = users.copy()
+#     max_round = users["round"].max()
+#
+#     all_rows = []
+#
+#     # IMPORTANT: group by BOTH experiment + user
+#     for (exp_id, user_id), g in users.groupby(["experiment_id", "user_id"]):
+#         g = g.sort_values("round")
+#
+#         full = pd.DataFrame({
+#             "experiment_id": exp_id,
+#             "user_id": user_id,
+#             "round": range(users["round"].min(), max_round + 1)
+#         })
+#
+#         full = full.merge(
+#             g[["experiment_id", "user_id", "round", "role", "state", "grs"]],
+#             on=["experiment_id", "user_id", "round"],
+#             how="left"
+#         )
+#
+#         full[["role", "state", "grs"]] = full[["role", "state", "grs"]].ffill()
+#
+#         all_rows.append(full)
+#
+#     return pd.concat(all_rows, ignore_index=True)
