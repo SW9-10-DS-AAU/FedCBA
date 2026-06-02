@@ -22,7 +22,7 @@ class TestAggGlobalAccuracyLossByRound:
 
     def test_output_columns(self, two_exp_global):
         result = agg.agg_global_accuracy_loss_by_round(two_exp_global)
-        assert set(result.columns) == {"round", "accuracy_mean", "accuracy_std", "loss_mean", "loss_std"}
+        assert set(result.columns) == {"round", "accuracy_mean", "accuracy_std", "loss_mean", "loss_std", "n"}
 
     def test_round_count_matches_unique_rounds(self, two_exp_global):
         result = agg.agg_global_accuracy_loss_by_round(two_exp_global)
@@ -56,7 +56,7 @@ class TestAggMergeWeightsByBehavior:
 
     def test_output_columns(self, two_exp_users):
         result = agg.agg_merge_weights_by_behavior(two_exp_users)
-        assert set(result.columns) == {"behavior", "round", "weight_mean", "weight_std"}
+        assert set(result.columns) == {"behavior", "round", "weight_mean", "weight_std", "n"}
 
     def test_round_0_has_nan_weight(self, two_exp_users):
         """Round 0 has no merge_weight — result should be NaN at round 0."""
@@ -166,7 +166,7 @@ class TestAggGrsByRole:
 
     def test_output_columns(self, two_exp_users, two_exp_metadata):
         result = agg.agg_grs_by_role(two_exp_users, two_exp_metadata)
-        assert set(result.columns) == {"role", "round", "grs_mean", "grs_std"}
+        assert set(result.columns) == {"role", "round", "grs_mean", "grs_std", "n"}
 
     def test_all_roles_present(self, two_exp_users, two_exp_metadata):
         result = agg.agg_grs_by_role(two_exp_users, two_exp_metadata)
@@ -211,7 +211,7 @@ class TestGrsByUser:
         pass  # imported at top
         single = make_users(["exp-A"])
         result = agg.grs_by_user(single)
-        assert set(result.columns) >= {"grs", "user_id", "role", "round"}
+        assert set(result.columns) >= {"grs", "user_id", "role", "round", "state"}
 
     def test_multi_experiment_raises(self, two_exp_users):
         with pytest.raises(ValueError, match="single-experiment"):
@@ -235,7 +235,7 @@ class TestGlobalAccByAggregationStrategy:
 
     def test_output_columns(self, two_exp_global, two_exp_metadata):
         result = agg.global_acc_by_aggregation_strategy(two_exp_global, two_exp_metadata)
-        assert set(result.columns) == {"aggregation_rule", "round", "accuracy_mean", "accuracy_std"}
+        assert set(result.columns) == {"aggregation_rule", "round", "accuracy_mean", "accuracy_std", "n"}
 
     def test_aggregation_rules_present(self, two_exp_global, two_exp_metadata):
         result = agg.global_acc_by_aggregation_strategy(two_exp_global, two_exp_metadata)
@@ -262,7 +262,7 @@ class TestAggGasUsedByTxType:
 
     def test_output_columns(self, two_exp_metadata):
         result = agg.agg_gas_used_by_tx_type(self._receipts(), two_exp_metadata)
-        assert set(result.columns) == {"tx_type", "contribution_score_strategy", "gas_mean", "gas_std"}
+        assert set(result.columns) == {"tx_type", "contribution_score_strategy", "gas_mean", "gas_std", "n"}
 
     def test_tx_types_present(self, two_exp_metadata):
         result = agg.agg_gas_used_by_tx_type(self._receipts(), two_exp_metadata)
@@ -313,3 +313,37 @@ class TestAggRoundKickedByStrategy:
         result = agg.agg_round_kicked_by_strategy(users, meta)
         assert (result["low_err"] >= 0).all()
         assert (result["high_err"] >= 0).all()
+
+
+# ---------------------------------------------------------------------------
+# Compute State Percentages
+# ---------------------------------------------------------------------------
+
+class TestComputeStatePercentages:
+
+    def _users(self):
+        # 4 "good" users active at round 0; one disqualified at round 1
+        rows = []
+        for uid in range(4):
+            rows.append({"experiment_id": "A", "round": 0, "user_id": uid, "role": "good", "state": "active"})
+        for uid in range(3):
+            rows.append({"experiment_id": "A", "round": 1, "user_id": uid, "role": "good", "state": "active"})
+        rows.append({"experiment_id": "A", "round": 1, "user_id": 3, "role": "good", "state": "disqualified"})
+        return pd.DataFrame(rows)
+
+    def test_percentages(self):
+        result = agg.compute_state_percentages(self._users())
+        r1 = result[(result["role"] == "good") & (result["round"] == 1)].iloc[0]
+        assert r1["active_pct"] == pytest.approx(75.0)  # 3/4
+        assert r1["disqualified_pct"] == pytest.approx(25.0)  # 1/4
+
+    def test_absent_role_no_div_by_zero(self):
+        # No "freerider"/"bad" rows → must not produce inf/NaN, just skip them
+        result = agg.compute_state_percentages(self._users())
+        assert result["role"].unique().tolist() == ["good"]
+        assert result[["active_pct", "disqualified_pct", "exited_pct"]].notna().all().all()
+
+    def test_rounds_sorted(self):
+        result = agg.compute_state_percentages(self._users())
+        good = result[result["role"] == "good"]["round"].tolist()
+        assert good == sorted(good)

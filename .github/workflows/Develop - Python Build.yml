@@ -47,3 +47,8 @@ jobs:
       # 5. Import check
       - name: Import check
         run: python -c "import sys; import os; print('Python OK')"
+
+      # 6. Run tests if folder exists
+      - name: Run tests
+        run: |
+          if [ -f pytest.ini ] || [ -d tests ]; then pip install pytest && pytest; fi

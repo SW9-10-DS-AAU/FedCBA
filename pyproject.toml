@@ -16,11 +16,12 @@ dependencies = [
   "matplotlib==3.10.7",
   "eth-abi==5.2.0",
   "pandas==2.3.3",
+  "scipy==1.15.3",
   "py-solc-x >= 2.0.5",
   "python-dotenv==1.2.1",
   "pytest==9.0.1",
   "psutil==6.1.0",
-  "jsonpickle"
+  "jsonpickle",
 ]
 
 # Dev-only tools (notebooks, testing, formatting, etc.)
@@ -34,7 +35,7 @@ dev = [
   "mypy",
   "pytest",
   "pytest-cov",
-  "nbstripout"
+  "nbstripout",
 ]
 
 ci = [
@@ -42,21 +43,33 @@ ci = [
 ]
 
 [tool.coverage.run]
-source_pkgs = ["ml", "api", "contracts", "utils", "analysis"]
+source_pkgs = ["ml", "api", "contracts", "utils", "analysis", "experiment"]
 omit = [
     "*/ml/cnn_models.py",
     "*/ml/participant.py",
-    "*/ml/pytorch_model.py",
     "*/ml/runtime.py",
     "*/ml/training.py",
     "*/ml/visualization.py",
     "*/contracts/fl_manager.py",
     "*/contracts/logging.py",
-    "*/utils/async_writer.py"
+    "*/utils/async_writer.py",
+    "experiment/sample.py",
+    "experiment/experiment_configuration.py",
+    "experiment/experiment_runner.py",
+    "experiment/experiments.py",
+    "experiment/sample.py",
+    "exoeriment/selector.py"
 ]
 
 [tool.coverage.report]
 show_missing = true
+exclude_lines = [
+  "pragma: no cover",
+  "pragma: openfl",   # legacy openfl code
+  "pragma: p9",       # P9-era code
+  "pragma: p10",      # P10-era code (probably keep covered, but available)
+  "pragma: unknown"   # Unknown origin
+]
 
 [tool.pytest.ini_options]
 python_files = ["test_*.py"]

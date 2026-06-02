@@ -28,7 +28,7 @@ def log_warning(challenge, msg, round=None):
     challenge._logger.warning(r, msg)
 
 
-def log_contribution_scores(challenge, users, scores, raw_values, outlier_info, previous_avg):
+def log_contribution_scores(challenge, users, scores):
     if challenge._logger is None:
         return
     challenge._logger.contribution_scores(
@@ -36,6 +36,17 @@ def log_contribution_scores(challenge, users, scores, raw_values, outlier_info, 
         user_ids=[u.id for u in users],
         user_addresses=[u.address for u in users],
         scores=scores,
+    )
+
+
+def log_contribution_score_mad(challenge, users, metric, raw_values, outlier_info, previous_avg):
+    if challenge._logger is None:
+        return
+    challenge._logger.contribution_score_mad(
+        round=challenge.pytorch_model.round,
+        user_ids=[u.id for u in users],
+        user_addresses=[u.address for u in users],
+        metric=metric,
         raw_values=raw_values,
         outlier_info=outlier_info,
         previous_avg=previous_avg,
@@ -98,9 +109,9 @@ def log_round(challenge, current_round, round_time,
 
     # ---- votes ----
     fbm = challenge.feedback_matrix
-    for _idx, _giver in enumerate(challenge.pytorch_model.participants):
-        _user_acc = prev_accs[_idx] if prev_accs and _idx < len(prev_accs) else None
-        _user_loss = prev_losses[_idx] if prev_losses and _idx < len(prev_losses) else None
+    for _giver in challenge.pytorch_model.participants:
+        _user_acc = prev_accs[_giver.id] if prev_accs and _giver.id < len(prev_accs) else None
+        _user_loss = prev_losses[_giver.id] if prev_losses and _giver.id < len(prev_losses) else None
         for _receiver in challenge.pytorch_model.participants:
             if _giver.id == _receiver.id:
                 continue
@@ -142,7 +153,7 @@ def log_round(challenge, current_round, round_time,
         )
     for _user in challenge.pytorch_model.disqualified:
         challenge._logger.user_round(
-            round=current_round, user_id=_user.id, state="disqualified",
+            round=current_round, user_id=_user.id, state="exited" if getattr(_user, 'left_system', False) else "disqualified",
             behavior=_user.attitude, role=_user.futureAttitude,
             grs=_user._globalrep[-1],
             sub_personal_acc=_user.currentAcc,
@@ -195,6 +206,21 @@ def log_punishments(challenge, events, current_round_no):
             round=current_round_no, user_id=u.id if u else None, user_address=args["victim"],
             punishment_type="passive",
             loss=args.get("loss"), round_score=args["roundScore"], new_reputation=None,
+        )
+
+
+def log_exits(challenge, events, current_round_no):
+    if challenge._logger is None:
+        return
+    user_map = {u.address: u for u in challenge.pytorch_model.participants + challenge.pytorch_model.disqualified}
+    for ev in events.get("UserExited", []):
+        args = ev["args"]
+        u = user_map.get(args["user"])
+        challenge._logger.exit(
+            round=current_round_no,
+            user_id=u.id if u else None,
+            user_address=args["user"],
+            grs_paid_out=args["grs"],
         )
 
 

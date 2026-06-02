@@ -109,6 +109,7 @@ class AsyncWriter:
           ("punish_factor", cfg.punish_factor, "penalty multiplier"),
           ("punish_factor_contrib", cfg.punish_factor_contrib, "penalty multiplier contribution score"),
           ("force_merge_all", cfg.force_merge_all, "Whether to force merging all participants"),
+          ("use_nobody_is_kicked", cfg.use_nobody_is_kicked, "Whether the NobodyIsKicked harness contract variant is used"),
           ("first_round_fee", cfg.first_round_fee, "fee for first round"),
           ("fork", cfg.fork, "True=local fork, False=real net"),
           ("dataset", cfg.dataset, "dataset used for training"),

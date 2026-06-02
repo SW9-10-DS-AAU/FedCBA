@@ -10,6 +10,7 @@ from web3 import Web3
 from termcolor import colored
 from subprocess import Popen, PIPE
 from utils.colors import gb, rb, b, green, red
+from utils.printer import print_divider
 from utils.paths import repo_root
 from utils.require_env import require_env_var
 
@@ -91,7 +92,7 @@ class ConnectionHelper:
         print("Learning Rounds:          {}".format(MINIMUM_ROUNDS))
         print("use nobody is kicked:    {}".format(use_nobody_is_kicked))
         
-        print("-----------------------------------------------------------------------------------")
+        print_divider()
         
         if fork:
             while not w3.eth.default_account:
@@ -132,7 +133,7 @@ class ConnectionHelper:
                                                            "@ Address "+acc.address[0:25]+"...",
                                                            bal/1e18,
                                                            prefix))
-        print("-----------------------------------------------------------------------------------")
+        print_divider()
         self.w3 = w3
         return w3, latestBlock
 
@@ -175,8 +176,8 @@ class ConnectionHelper:
     
     def build_tx(self, _from, _to, _value=0):
         assert(_to != "0x0000000000000000000000000000000000000000")
-        _from = w3.to_checksum_address(_from)
-        _to = w3.to_checksum_address(_to)
+        _from = self.w3.to_checksum_address(_from)
+        _to = self.w3.to_checksum_address(_to)
         return {
             'from': _from,
             'to': _to,
@@ -190,7 +191,7 @@ class ConnectionHelper:
     
     def build_non_fork_tx(self, addr, nonce, to=None, value=0, data=None, gas_limit=None):
         # Dynamically detect correct chain ID
-        chain_id = w3.eth.chain_id
+        chain_id = self.w3.eth.chain_id
 
         # Give on-chain deployments breathing room unless caller overrides
         if gas_limit is None:

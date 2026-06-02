@@ -164,6 +164,7 @@ artifacts/bytecode/**
 data/datasets/**
 data/runs/**
 data/figures/**
+data/output_graphs/**
 
 
 # Spyder project settings

@@ -5,6 +5,7 @@ from collections import OrderedDict
 import ml.training as training
 from utils import aggregation_strategy_parser
 from utils.colors import yellow, red, b
+from utils.printer import print_divider
 from ml.runtime import DEVICE
 from typing import Callable
 
@@ -16,9 +17,9 @@ def the_merge(pm, _current_round_no, _users, aggregation_rule: str, merge_weight
     # No qualified users → skip merge this round
     if not _users:
         msg = f"[Round {_current_round_no}] No participants qualified for merge – skipping aggregation"
-        print("-----------------------------------------------------------------------------------")
+        print_divider()
         print(red(msg))
-        print("-----------------------------------------------------------------------------------\n")
+        print_divider(blank_line_after=True)
         if warning_collector is not None:
             warning_collector.append(msg)
         return
@@ -26,6 +27,7 @@ def the_merge(pm, _current_round_no, _users, aggregation_rule: str, merge_weight
     # state_dict + detach().clone(): lightweight independent snapshot; no need to copy the full model object.
     pre_merge_snapshot = OrderedDict((k, v.detach().clone()) for k, v in pm.global_model.state_dict().items())
 
+    pm.three_previous_global_model = pm.two_previous_global_model
     pm.two_previous_global_model = pm.previous_global_model
     pm.previous_global_model = pre_merge_snapshot
 
@@ -144,7 +146,7 @@ def the_merge(pm, _current_round_no, _users, aggregation_rule: str, merge_weight
     for u in _users:
         print(f"User {u.address[0:16]}... merge_weight: {users_merge_weights[u.address]:.4f}")
 
-    print("-----------------------------------------------------------------------------------")
+    print_divider()
     print(b("Merged Model: Accuracy {:>3.0f} % | Loss {:>6,.2f}".format(accuracy * 100, loss)))
 
     # -------------------------
@@ -156,13 +158,13 @@ def the_merge(pm, _current_round_no, _users, aggregation_rule: str, merge_weight
         u.previousModel = OrderedDict((k, v.detach().clone()) for k, v in u.model.state_dict().items())
         u.model.load_state_dict(pm.global_model.state_dict())
 
-    print("-----------------------------------------------------------------------------------\n")
+    print_divider(blank_line_after=True)
 
 
 def models_are_equal(sd_a, sd_b):
     # Changed from model objects to state_dict snapshots, so compare mapping keys/tensors directly.
-    if sd_a.keys() != sd_b.keys():
-        return False
+    if sd_a is None or sd_b is None: return False
+    if sd_a.keys() != sd_b.keys(): return False
     return all(torch.equal(sd_a[k], sd_b[k]) for k in sd_a)
 
 
@@ -183,13 +185,15 @@ def invoke_partial_switch(pm, users_contrib_scores, switch_type: str, func1: Cal
             return func1(users_contrib_scores)
         if switch_type == "partial_switch_fixed_loss":
             return partial_switch_fixed_loss(users_contrib_scores, avg_prior_losses[0], func1, func2, agg_switch_collector=agg_switch_collector)
-        return partial_switch_loss_retrospective(users_contrib_scores, avg_prior_losses, func1, func2, agg_switch_collector=agg_switch_collector)
+        elif switch_type == "partial_switch_retrospective":
+            return partial_switch_loss_retrospective(users_contrib_scores, avg_prior_losses, func1, func2, agg_switch_collector=agg_switch_collector)
+        else:
+            raise ValueError(f"Unknown partial switch type: {switch_type}")
 
-    raise ValueError(f"Unknown partial switch type: {switch_type}")
 
 
 def binary_switch(pm, users_contrib_scores, func_1, func_2, agg_switch_collector, _current_round_no):
-    if not pm.has_switched and _current_round_no > 1 and pm.two_previous_global_model is not None: # Here pm.round has incremented so at least 0+1.
+    if not pm.has_switched and _current_round_no > 1: # Here pm.round has incremented so at least 0+1.
         if models_are_equal(pm.previous_global_model, pm.two_previous_global_model):
             pm.has_switched = True
             print(
@@ -303,6 +307,7 @@ def partial_switch_loss_retrospective(users_contrib_scores, avg_prior_losses, fu
             improvement_ratio = max(0.0, min(1.0, -slope / mean_loss))
     else:
         improvement_ratio = 1.0  # not enough data, go strict
+        print(yellow("Warning: Not enough prior losses for retrospective switch; defaulting to func_1. Provide at least 2 loss values for dynamic switching."))
 
     # Map ratio → angle [0°, 90°] → sine blend weight.
     # sin(0°) = 0  → loss plateauing  → fully func_2 (soft/rewarding)
