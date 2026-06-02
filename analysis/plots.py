@@ -821,7 +821,7 @@ def plot_merge_weights_by_behavior(agg_weights: pd.DataFrame, stats: pd.DataFram
 
 
 def _next_graph_id(directory: Path) -> str:
-    existing = [p.name for p in directory.glob("*.svg")]
+    existing = [p.name for p in directory.glob("*.svg")] + [p.name for p in directory.glob("*.csv")]
     ids = []
     for name in existing:
         part = name.split("-")[0]
@@ -849,6 +849,34 @@ def delete_figure(directory: str | Path, graph_id: str) -> None:
             mappings_path.write_text("".join(kept))
         else:
             mappings_path.unlink()
+
+
+def save_dataframe(df: "pd.DataFrame", base_dir, experiment_name=None, suffix: str = "") -> None:
+    """Save a summary DataFrame as CSV, using the same sequential ID namespace as save_figure.
+
+    The DataFrame must carry provenance via attrs:
+      df.attrs["name"]           — used as the filename stem (e.g. "malicious_summary")
+      df.attrs["experiment_ids"] — list of experiment_id strings; UUIDs are extracted and
+                                   written to mappings.txt so the source runs are traceable.
+    """
+    name = df.attrs.get("name", "dataframe")
+    experiment_ids = df.attrs.get("experiment_ids", [])
+
+    directory = Path(base_dir) / experiment_name if experiment_name is not None else Path(base_dir)
+    directory.mkdir(parents=True, exist_ok=True)
+
+    data_id = _next_graph_id(directory)
+    stem = f"{data_id}-{name}{f'-{suffix}' if suffix else ''}"
+    df.to_csv(directory / f"{stem}.csv", index=False)
+
+    if experiment_ids:
+        with open(directory / "mappings.txt", "a") as f:
+            for eid in experiment_ids:
+                try:
+                    uid = extract_uuid_from_filename(eid)
+                except ValueError:
+                    uid = eid
+                f.write(f"{data_id}: {uid}\n")
 
 
 def save_figure(fig: plt.Figure, base_dir, experiment_name=None, suffix: str = "", dpi: int = 300):
