@@ -195,10 +195,10 @@ def _calculate_scores_accuracy_loss(challenge, users, _current_round_no=None, ma
 
     scores = []
 
-    norm_accuracies = normalize_contribution_scores_old(avg_accuracies, avg_prev_acc)
+    norm_accuracies = normalize_contribution_scores_legacy(avg_accuracies, avg_prev_acc)
     print(f"normalized accuracies: {norm_accuracies}")
 
-    norm_losses = normalize_contribution_scores_old(avg_losses, avg_prev_loss)
+    norm_losses = normalize_contribution_scores_legacy(avg_losses, avg_prev_loss)
     print(f"normalized losses: {norm_losses}")
 
     sum_na = sum(norm_accuracies)
@@ -264,7 +264,7 @@ def _calculate_scores_accuracy_only(challenge, users, _current_round_no, mad_thr
 
         # No evaluation voting here. For loss_only
 
-    norm_accuracies = normalize_contribution_scores_new(avg_accuracies, avg_prev_acc, 'accuracy')
+    norm_accuracies = normalize_contribution_scores(avg_accuracies, avg_prev_acc, 'accuracy')
     print(f"normalized accuracies: {norm_accuracies}")
 
     # Validating Shapley Axioms (Runtime Guard)
@@ -345,7 +345,7 @@ def _calculate_scores_loss_only(challenge, users, _current_round_no, mad_thresho
             else:
                 warnings.warn("Voter {} not found among merging users".format(voter_addr))
 
-    norm_losses = normalize_contribution_scores_new(avg_losses, avg_prev_loss, 'loss')
+    norm_losses = normalize_contribution_scores(avg_losses, avg_prev_loss, 'loss')
     # print(f"normalized losses: {norm_losses}")
 
     # sum_nl = sum(norm_losses)
@@ -415,7 +415,7 @@ def calc_contribution_scores_dotproduct(local_updates: torch.Tensor,
     return [float(score.item()) for score in scores]
 
 
-def normalize_contribution_scores_old(arr, prev_val): # pragma: p9
+def normalize_contribution_scores_legacy(arr, prev_val): # pragma: p9
     # This method takes a 1d array of an array (accuracy or loss), a scalar of previous accuracy or loss
     # Output is an array of normalized (according to sum) input array values
     # Takes a list of values
@@ -425,6 +425,7 @@ def normalize_contribution_scores_old(arr, prev_val): # pragma: p9
     # -- arr - prev_val => norm_arr = [2, 1, 0]
     # -- sum = 3
     # -- [2/3, 1/3, 0/3]
+
 
     norm_arr = []
     sum_val = 0.0
@@ -442,7 +443,7 @@ def normalize_contribution_scores_old(arr, prev_val): # pragma: p9
     return norm_arr
 
 
-def normalize_contribution_scores_new(vals: list, prev_val: float, evaluation_metric: str) -> list:
+def normalize_contribution_scores(vals: list, prev_val: float, evaluation_metric: str) -> list:
     """
     4-step normalization for contribution scores.
 
@@ -454,28 +455,24 @@ def normalize_contribution_scores_new(vals: list, prev_val: float, evaluation_me
     """
 
     # Step 1: subtract baseline, flip sign for loss
-    vals = [v - prev_val for v in vals] # Handle the subtraction of new minus prev here
+    vals = [val - prev_val for val in vals] # Handle the subtraction of new minus prev here
     if evaluation_metric == "loss":
         vals = [-1 * val for val in vals]
-    sum_ = sum(vals)
 
     # Step 2: edge cases
     max_val = max(vals)
     if max_val == 0:
         vals = [1 if val == 0 else val for val in vals]
     elif max_val < 0:
-        vals = [sum_ / val for val in vals]
-    # elif sum_ < 0:
-    # vals = [val / -sum_ for val in vals]
-
+        vals = [sum(vals) / val for val in vals]
 
     # Step 3: clamp negatives to minimum -1
     if min(vals) < -1:
         divisor = -min(vals)
         vals = [val / divisor if val < 0 else val for val in vals]
-    sum_ = sum(vals)
 
     # Step 4: normalize to sum = 1
+    sum_ = sum(vals)
     if not sum_ == 1:  #
         if min(vals) >= 0:  # if all positive
             vals = [val / sum_ for val in vals]
