@@ -312,7 +312,8 @@ def partial_switch_loss_retrospective(users_contrib_scores, avg_prior_losses, fu
     # Map ratio → angle [0°, 90°] → sine blend weight.
     # sin(0°) = 0  → loss plateauing  → fully func_2 (soft/rewarding)
     # sin(90°) = 1 → max improvement  → fully func_1 (strict/conservative)
-    # Sine gives a slow start and fast finish: cautious early, more aggressive as convergence grows.
+    # Sine gives a fast start and slow finish: a weak improvement signal already shifts noticeable
+    # weight toward func_1, with smooth saturation as r → 1. The curve is concave on [0, π/2].
     alpha = math.sin(math.radians(
         improvement_ratio * 90.0))  # weight for func_1   0.33 → 30° → sin(30°)=0.5
     beta = 1.0 - alpha  # weight for func_2  1 - 0.5 = 0.5

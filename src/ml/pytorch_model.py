@@ -108,6 +108,7 @@ class PytorchModel:
         self.round = 1
         self.previous_global_model = None
         self.two_previous_global_model = None
+        self.three_previous_global_model = None
         self._capabilities_printed = False
         self._cpu_pool_decision = None
         print_divider("=")
@@ -433,6 +434,7 @@ class PytorchModel:
         self.global_model = None
         self.previous_global_model = None
         self.two_previous_global_model = None
+        self.three_previous_global_model = None
         self.participants = []
         self.disqualified = []
         gc.collect()
