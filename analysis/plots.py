@@ -12,7 +12,13 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-matplotlib.rcParams.update({"figure.dpi": 200})
+matplotlib.rcdefaults()
+matplotlib.rcParams.update({
+    "figure.dpi": 300,
+    "pgf.rcfonts": False,
+})
+figure_file_extensions = ["pgf", "svg", "png", "pdf"]
+figure_file_extension = figure_file_extensions[0]
 
 
 def _ci(std: pd.Series, n: pd.Series, confidence: float = 0.95) -> pd.Series:
@@ -819,38 +825,6 @@ def plot_merge_weights_by_behavior(agg_weights: pd.DataFrame, stats: pd.DataFram
     return fig
 
 
-
-def _next_graph_id(directory: Path) -> str:
-    existing = [p.name for p in directory.glob("*.svg")] + [p.name for p in directory.glob("*.csv")]
-    ids = []
-    for name in existing:
-        part = name.split("-")[0]
-        if part.isdigit():
-            ids.append(int(part))
-    next_id = max(ids) + 1 if ids else 1
-    return f"{next_id:03d}"
-
-
-def delete_figure(directory: str | Path, graph_id: str) -> None:
-    directory = Path(directory)
-    matches = list(directory.glob(f"{graph_id}-*.svg"))
-    if not matches:
-        raise FileNotFoundError(f"No SVG with graph_id '{graph_id}' in {directory}")
-
-    for svg in matches:
-        svg.unlink()
-
-    mappings_path = directory / "mappings.txt"
-
-    if mappings_path.exists():
-        lines = mappings_path.read_text().splitlines(keepends=True)
-        kept = [l for l in lines if not l.startswith(f"{graph_id}:") and l.strip()]
-        if kept:
-            mappings_path.write_text("".join(kept))
-        else:
-            mappings_path.unlink()
-
-
 def save_dataframe(df: "pd.DataFrame", base_dir, experiment_name=None, suffix: str = "") -> None:
     """Save a summary DataFrame as CSV, using the same sequential ID namespace as save_figure.
 
@@ -879,6 +853,37 @@ def save_dataframe(df: "pd.DataFrame", base_dir, experiment_name=None, suffix: s
                 f.write(f"{data_id}: {uid}\n")
 
 
+def _next_graph_id(directory: Path) -> str:
+    existing = [p.name for ext in figure_file_extensions for p in directory.glob(f"*.{ext}")] + [p.name for p in directory.glob("*.csv")]
+    ids = []
+    for name in existing:
+        part = name.split("-")[0]
+        if part.isdigit():
+            ids.append(int(part))
+    next_id = max(ids) + 1 if ids else 1
+    return f"{next_id:03d}"
+
+
+def delete_figure(directory: str | Path, graph_id: str) -> None:
+    directory = Path(directory)
+    matches = [p for ext in figure_file_extensions for p in directory.glob(f"{graph_id}-*.{ext}")]
+    if not matches:
+        raise FileNotFoundError(f"No figure with graph_id '{graph_id}' in {directory}")
+
+    for file in matches:
+        file.unlink()
+
+    mappings_path = directory / "mappings.txt"
+
+    if mappings_path.exists():
+        lines = mappings_path.read_text().splitlines(keepends=True)
+        kept = [l for l in lines if not l.startswith(f"{graph_id}:") and l.strip()]
+        if kept:
+            mappings_path.write_text("".join(kept))
+        else:
+            mappings_path.unlink()
+
+
 def save_figure(fig: plt.Figure, base_dir, experiment_name=None, suffix: str = "", dpi: int = 300):
     plot_name = getattr(fig, "_plot_name", "figure")
     uuids = getattr(fig, "_uuids", [])
@@ -887,7 +892,7 @@ def save_figure(fig: plt.Figure, base_dir, experiment_name=None, suffix: str = "
 
     graph_id = _next_graph_id(directory)
     stem = f"{graph_id}-{plot_name}{f'-{suffix}' if suffix else ''}"
-    fig.savefig(directory / f"{stem}.svg", dpi=dpi, bbox_inches="tight")
+    fig.savefig(directory / f"{stem}.{figure_file_extension}", dpi=dpi, bbox_inches="tight", transparent=True)
 
     if uuids:
         with open(directory / "mappings.txt", "a") as f:
@@ -897,3 +902,4 @@ def save_figure(fig: plt.Figure, base_dir, experiment_name=None, suffix: str = "
                 except ValueError:
                     pass  # already a bare UUID or unrecognised format — write as-is
                 f.write(f"{graph_id}: {uid}\n")
+            f.write("\n")
