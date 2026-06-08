@@ -3,6 +3,15 @@ import numpy as np
 from scipy.stats import wilcoxon as _wilcoxon
 
 
+def _get_activation_round(metadata: pd.DataFrame) -> int | None:
+    for col in ("freerider_start_round", "malicious_start_round"):
+        if col in metadata.columns:
+            val = metadata[col].dropna().mode()
+            if not val.empty:
+                return int(val.iloc[0])
+    return None
+
+
 def _require_nonempty(df: pd.DataFrame, name: str) -> None:
     """Raise a clear error if *df* has no rows, rather than a cryptic KeyError later."""
     if df.empty:
@@ -179,6 +188,7 @@ def agg_grs_by_role(merged_users: pd.DataFrame, metadata: pd.DataFrame) -> pd.Da
         .reset_index()
     )
     agg.attrs["experiment_ids"] = list(merged_users["experiment_id"].unique())
+    agg.attrs["activation_round"] = _get_activation_round(metadata)
     return agg
 
 
@@ -282,6 +292,7 @@ def global_acc_by_aggregation_strategy(acc_over_agg: pd.DataFrame, metadata: pd.
         .reset_index()
     )
     agg.attrs["experiment_ids"] = list(acc_over_agg["experiment_id"].unique())
+    agg.attrs["activation_round"] = _get_activation_round(metadata)
     return agg
 
 
@@ -314,6 +325,7 @@ def global_loss_by_aggregation_strategy(loss_over_agg: pd.DataFrame, metadata: p
         .reset_index()
     )
     agg.attrs["experiment_ids"] = list(loss_over_agg["experiment_id"].unique())
+    agg.attrs["activation_round"] = _get_activation_round(metadata)
     return agg
 
 
@@ -697,6 +709,7 @@ def agg_wilcoxon_analysis(
     Pairwise Wilcoxon signed-rank test comparing each aggregation rule against a baseline
     at one or more specific rounds.
 
+
     Args:
         runs:        List of RunData objects. Each must have metadata key 'aggregation_rule'
                      and a rounds_global DataFrame with 'round' and 'objective_global_accuracy'.
@@ -711,6 +724,10 @@ def agg_wilcoxon_analysis(
         NaN where a round is not available for that rule.
         attrs["name"] and attrs["experiment_ids"] are set for save_dataframe compatibility.
     """
+
+    #   With alternative="greater" it tests whether the other strategy's accuracy is higher than FedAvg's accuracy. A low p-value means the
+    #   other strategy is significantly better than baseline.
+
     records = []
     for r in runs:
         rule = r.metadata.get("aggregation_rule")

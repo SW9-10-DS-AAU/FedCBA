@@ -8,7 +8,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator, MultipleLocator
 from matplotlib.lines import Line2D
-from matplotlib.patches import Patch
+from matplotlib.patches import Patch, Rectangle
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes, mark_inset
 import numpy as np
 import pandas as pd
@@ -59,13 +59,13 @@ CONTRIBUTION_SCORE_PAPER_NAME = {
     "loss_only":     "Loss",
 }
 
-AGGREGATION_STRATEGY_COLORS = {
-    "positives_only":    "#2196F3",
-    "plus_one_normalize": "#FF9800",
-    "GRS_aggregation":   "#E91E63",
-    "binary_switch":     "#4CAF50",
-    "partial_switch":    "#9C27B0",
-    "FedAVG":            "#009688",
+AGGREGATION_STRATEGY_STYLES = {
+    "positives_only":     {"color": "#0d49fb", "linestyle": "-",  "linewidth": 2},
+    "plus_one_normalize": {"color": "#e6091c", "linestyle": "-",  "linewidth": 2},
+    "GRS_aggregation":    {"color": "#26eb47", "linestyle": "-.",  "linewidth": 2},
+    "binary_switch":      {"color": "#8936df", "linestyle": "--", "linewidth": 2},
+    "partial_switch":     {"color": "#fec32d", "linestyle": "--", "linewidth": 2},
+    "FedAVG":             {"color": "#25d7fd", "linestyle": ":",  "linewidth": 2},
 }
 
 AGGREGATION_STRATEGY_PAPER_NAME = {
@@ -79,13 +79,17 @@ AGGREGATION_STRATEGY_PAPER_NAME = {
 
 ACTIVATION_COLOR = "#666666"
 
-def _strategy_color(key: str) -> str | None:
-    if key in AGGREGATION_STRATEGY_COLORS:
-        return AGGREGATION_STRATEGY_COLORS[key]
-    for prefix, color in AGGREGATION_STRATEGY_COLORS.items():
+def _strategy_style(key: str) -> dict:
+    if key in AGGREGATION_STRATEGY_STYLES:
+        return AGGREGATION_STRATEGY_STYLES[key]
+    for prefix, style in AGGREGATION_STRATEGY_STYLES.items():
         if key.startswith(prefix):
-            return color
-    return None
+            return style
+    return {}
+
+
+def _strategy_color(key: str) -> str | None:
+    return _strategy_style(key).get("color")
 
 
 
@@ -134,7 +138,7 @@ def _add_zoom_inset(
     loc: str,
     loc1: int,
     loc2: int,
-    y_col: str = "loss_mean",
+    y_col: str,
 ) -> None:
     zoom_data = data[data["round"] >= x_range[0]]
     y1 = zoom_data[y_col].min()
@@ -146,12 +150,15 @@ def _add_zoom_inset(
     strategy_groups = {s: grp for s, grp in data.groupby("aggregation_rule")}
     for strategy in _ordered_strategies(strategy_groups):
         group = strategy_groups[strategy].sort_values("round")
-        axins.plot(group["round"], group[y_col], color=_strategy_color(strategy), linewidth=1.5)
+        axins.plot(group["round"], group[y_col], **{**_strategy_style(strategy), "linewidth": 1.5})
     axins.set_xlim(x_range[0] - 0.1, x_range[1] + 0.1)
     axins.set_ylim(y1 - pad, y2 + pad)
     axins.xaxis.set_major_locator(MultipleLocator(1))
     axins.tick_params(labelsize=7)
+    axins.add_patch(Rectangle((0, 0), 1, 1, transform=axins.transAxes, facecolor="white", edgecolor="none", zorder=0))
+    axins.grid(True, alpha=0.3)
     mark_inset(ax, axins, loc1=loc1, loc2=loc2, fc="none", ec="0.5", linewidth=0.8)
+
 
 
 def _ci(std: pd.Series, n: pd.Series, confidence: float = 0.95) -> pd.Series:
@@ -180,7 +187,7 @@ def plot_accuracy_loss_over_rounds(agg_global: pd.DataFrame, error_band: str = "
     ax2 = ax1.twinx()
 
     rounds = agg_global["round"]
-    band_label = r"95\% CI" if error_band == "ci" else "±std"
+    band_label = r"95\% CI" if error_band == "ci" else r"±std"
     n = agg_global["n"] if "n" in agg_global.columns else None
     ci_drawn = False
 
@@ -243,7 +250,7 @@ def plot_accuracy_loss_over_rounds(agg_global: pd.DataFrame, error_band: str = "
 #     """
 #     fig, ax = plt.subplots(figsize=(9, 4))
 #
-#     band_label = r"95\% CI" if error_band == "ci" else "±std"
+#     band_label = r"95\% CI" if error_band == "ci" else r"±std"
 #     ci_in_legend = False
 #     for contrib_score, group in agg_by_strategy.groupby("contribution_score_strategy"):
 #         color = CONTRIBUTION_SCORE_COLORS.get(contrib_score)
@@ -299,7 +306,7 @@ def plot_accuracy_loss_over_rounds(agg_global: pd.DataFrame, error_band: str = "
 #         patch.set_alpha(0.7)
 #
 #     ax.set_xlabel("Strategy")
-#     ax.set_ylabel(r"Final-Round Accuracy (\%)")
+#     ax.set_ylabel("Final-Round Accuracy (%)")
 #     ax.grid(True, alpha=0.3, axis="y")
 #     fig._plot_name = "strategy_comparison_boxplot"
 #     fig._uuids = agg_final.attrs.get("experiment_ids", [])
@@ -310,17 +317,16 @@ def plot_accuracy_loss_over_rounds(agg_global: pd.DataFrame, error_band: str = "
 def plot_grs_by_role(
     agg_grs: pd.DataFrame,
     error_band: str = "ci",
-    activation_rounds: dict[str, int] | None = None,
 ) -> plt.Figure:
     """
     One line per role (eventual user type), GRS over rounds with error band (95% CI by default, or ±std).
 
     Expects columns: role, round, grs_mean, grs_std.
-    activation_rounds: optional dict mapping role key → round number for vertical activation lines.
+    activation_round: if provided, draws a vertical line at activation_round - 1 labeled "Pre-Attack Round".
     """
     fig, ax = plt.subplots(figsize=(9, 4))
 
-    band_label = r"95\% CI" if error_band == "ci" else "±std"
+    band_label = r"95\% CI" if error_band == "ci" else r"±std"
     ci_in_legend = False
 
     role_groups = {role: grp for role, grp in agg_grs.groupby("role")}
@@ -355,6 +361,10 @@ def plot_grs_by_role(
     #             label=f"{ROLE_LABELS.get(role, role)} activation",
     #         )
 
+    act = agg_grs.attrs.get("activation_round")
+    if act is not None:
+        ax.axvline(act - 1, color=ACTIVATION_COLOR, linestyle="--", linewidth=1.5, label="Pre-Attack Round")
+
     handles, labels = ax.get_legend_handles_labels()
     if ci_in_legend:
         handles.append(Patch(facecolor="gray", alpha=0.3))
@@ -364,6 +374,8 @@ def plot_grs_by_role(
     ax.xaxis.set_major_locator(MultipleLocator(1))
     ax.legend(handles, labels, title="Role:")
     ax.grid(True, alpha=0.3)
+    fig._legend_handles = handles
+    fig._legend_labels = labels
     fig._plot_name = "grs_by_role"
     fig._uuids = agg_grs.attrs.get("experiment_ids", [])
     fig.tight_layout()
@@ -379,7 +391,7 @@ def plot_grs_by_role(
 #     """
 #     fig, ax = plt.subplots(figsize=(9, 4))
 #
-#     band_label = r"95\% CI" if error_band == "ci" else "±std"
+#     band_label = r"95\% CI" if error_band == "ci" else r"±std"
 #     ci_in_legend = False
 #     for role, group in agg_scores.groupby("role"):
 #         color = BEHAVIOR_COLORS.get(role, None)
@@ -421,7 +433,7 @@ def plot_grs_by_role_relative(agg_grs: pd.DataFrame, error_band: str = "ci") -> 
     """
     fig, ax = plt.subplots(figsize=(9, 4))
 
-    band_label = r"95\% CI" if error_band == "ci" else "±std"
+    band_label = r"95\% CI" if error_band == "ci" else r"±std"
     ci_in_legend = False
     for role, group in agg_grs.groupby("role"):
         color = BEHAVIOR_COLORS.get(role, None)
@@ -464,7 +476,7 @@ def plot_contribution_score_by_role_relative(agg_scores: pd.DataFrame, error_ban
     """
     fig, ax = plt.subplots(figsize=(9, 4))
 
-    band_label = r"95\% CI" if error_band == "ci" else "±std"
+    band_label = r"95\% CI" if error_band == "ci" else r"±std"
     ci_in_legend = False
     role_groups = {role: grp for role, grp in agg_scores.groupby("role")}
     for role in ROLE_ORDER:
@@ -538,22 +550,16 @@ def plot_grs_by_user(
         experiment_id = grs_users["experiment_id"].iloc[0]
         meta = metadata[metadata["experiment_id"] == experiment_id].iloc[0]
         roles_in_data = grs_users["role"].unique()
+        act_round = None
         for role, col in (("bad", "malicious_start_round"), ("freerider", "freerider_start_round")):
             if role not in roles_in_data or col not in meta.index:
                 continue
-            activation_round = meta[col]
-            if pd.isna(activation_round):
-                continue
-            color = BEHAVIOR_COLORS.get(role, "black")
-            # ax.axvline(
-            #     int(activation_round),
-            #     linestyle="--",
-            #     color=color,
-            #     linewidth=1.5,
-            #     alpha=0.6,
-            #     label=f"{ROLE_LABELS.get(role, role)} activation",
-            # )
-            ax.axvline(int(activation_round), color=ACTIVATION_COLOR, linestyle="--", linewidth=1.5, label="Activation Round")
+            val = meta[col]
+            if not pd.isna(val):
+                act_round = int(val)
+                break
+        if act_round is not None:
+            ax.axvline(act_round - 1, color=ACTIVATION_COLOR, linestyle="--", linewidth=1.5, label="Pre-Attack Round")
 
     ax.set_xlabel("Round")
     ax.set_ylabel("Global Reputation Score (ETH)")
@@ -593,18 +599,10 @@ def plot_grs_by_role_by_aggregation_strategy(data, metadata, res):
         #         if not val.empty:
         #             act[role] = int(val.iloc[0])
 
-        # Single activation round (freerider_start_round == malicious_start_round by design)
-        _act_col = next(
-            (c for c in ("freerider_start_round", "malicious_start_round") if c in metadata_group.columns),
-            None,
-        )
-        act_round = int(metadata_group[_act_col].dropna().mode().iloc[0]) if _act_col else None
-
-        fig = plot_grs_by_role(aggregated, activation_rounds=None)
+        fig = plot_grs_by_role(aggregated)
         ax = fig.axes[0]
-        if act_round is not None:
-            ax.axvline(act_round, color=ACTIVATION_COLOR, linestyle="--", linewidth=1.5, label="Activation Round")
-        role_handles, role_labels = ax.get_legend_handles_labels()
+        role_handles = fig._legend_handles
+        role_labels = fig._legend_labels
 
         # users dataframe from your experiment results
         users_group = res["users"][
@@ -657,50 +655,59 @@ def plot_grs_by_role_by_aggregation_strategy(data, metadata, res):
 def plot_global_acc_by_aggregation_strategy(
     acc_by_strategy: pd.DataFrame,
     error_band: str = "ci",
-    activation_round: int | None = None,
+    show_ci: bool = False,
 ) -> plt.Figure:
     """
     One line per aggregation rule, mean accuracy over rounds with error band (95% CI by default, or ±std).
 
     Expects columns: aggregation_rule, round, accuracy_mean, accuracy_std.
-    activation_round: if provided, draws a vertical dashed line at that round.
     """
-    fig, ax = plt.subplots(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=(9, 4), constrained_layout=True)
 
-    # band_label = r"95\% CI" if error_band == "ci" else "±std"
-    # ci_in_legend = False
+    band_label = r"95\% CI" if error_band == "ci" else r"±std"
+    ci_in_legend = False
     strategy_groups = {s: grp for s, grp in acc_by_strategy.groupby("aggregation_rule")}
     for strategy in _ordered_strategies(strategy_groups):
-        color = _strategy_color(strategy)
         group = strategy_groups[strategy].sort_values("round")
-        ax.plot(group["round"], group["accuracy_mean"], label=strategy, color=color, linewidth=2)
-        # if "accuracy_std" in group.columns:
-        #     n = group["n"] if "n" in group.columns else None
-        #     b = _band(group["accuracy_std"], n, error_band)
-        #     if b is not None:
-        #         ax.fill_between(
-        #             group["round"],
-        #             group["accuracy_mean"] - b,
-        #             group["accuracy_mean"] + b,
-        #             alpha=0.15, color=color, label="_nolegend_",
-        #         )
-        #         ci_in_legend = True
+        ax.plot(group["round"], group["accuracy_mean"], label=_strategy_label(strategy), **_strategy_style(strategy))
 
-    if activation_round is not None:
-        ax.axvline(activation_round, color=ACTIVATION_COLOR, linestyle="--", linewidth=1.5, label="Activation Round")
+        if show_ci and "accuracy_std" in group.columns:
+            n = group["n"] if "n" in group.columns else None
+            b = _band(group["accuracy_std"], n, error_band)
+            if b is not None:
+                ax.fill_between(
+                    group["round"],
+                    group["accuracy_mean"] - b,
+                    group["accuracy_mean"] + b,
+                    alpha=0.15, color=_strategy_color(strategy), label="_nolegend_",
+                )
+                ci_in_legend = True
+
+    act = acc_by_strategy.attrs.get("activation_round")
+    if act is not None:
+        ax.axvline(act - 1, color=ACTIVATION_COLOR, linestyle="--", linewidth=1.5, label="Pre-Attack Round")
 
     handles, labels = ax.get_legend_handles_labels()
-    # if ci_in_legend:
-    #     handles.append(Patch(facecolor="gray", alpha=0.3))
-    #     labels.append(band_label)
+    if ci_in_legend:
+        handles.append(Patch(facecolor="gray", alpha=0.3))
+        labels.append(band_label)
     ax.set_xlabel("Round")
     ax.set_ylabel(r"Global Accuracy (\%)")
     ax.xaxis.set_major_locator(MultipleLocator(1))
-    ax.legend(handles, labels, title="Agg. Strategy")
+    ax.legend(handles, labels, title="Agg. Strategy", fontsize=8)
     ax.grid(True, alpha=0.3)
+
+    max_round = int(acc_by_strategy["round"].max())
+    _add_zoom_inset(ax, acc_by_strategy,
+                    x_range=(max_round - 2, max_round),
+                    bbox_to_anchor=(0.25, 0.45, 0.73, 0.95),
+                    width="55%", height="40%",
+                    loc="lower right",
+                    loc1=1, loc2=2,
+                    y_col="accuracy_mean")
+
     fig._plot_name = "global_acc_by_aggregation_strategy"
     fig._uuids = acc_by_strategy.attrs.get("experiment_ids", [])
-    fig.tight_layout()
 
     return fig
 
@@ -709,41 +716,43 @@ def plot_global_acc_by_aggregation_strategy(
 def plot_global_loss_by_aggregation_strategy(
     loss_by_strategy: pd.DataFrame,
     error_band: str = "ci",
-    activation_round: int | None = None,
+    show_ci: bool = False,
 ) -> plt.Figure:
     """
     One line per aggregation rule, mean loss over rounds with error band (95% CI by default, or ±std).
 
     Expects columns: aggregation_rule, round, loss_mean, loss_std.
-    activation_round: if provided, draws a vertical dashed line at that round.
     """
-    fig, ax = plt.subplots(figsize=(9, 4), constrained_layout=True) # Warning if not
-    #
-    # band_label = r"95\% CI" if error_band == "ci" else "±std"
-    # ci_in_legend = False
+    fig, ax = plt.subplots(figsize=(9, 4), constrained_layout=True)
+
+    band_label = r"95\% CI" if error_band == "ci" else r"±std"
+    ci_in_legend = False
 
     strategy_groups = {s: grp for s, grp in loss_by_strategy.groupby("aggregation_rule")}
     for strategy in _ordered_strategies(strategy_groups):
-        color = _strategy_color(strategy)
         group = strategy_groups[strategy].sort_values("round")
 
-        ax.plot(group["round"], group["loss_mean"], label=_strategy_label(strategy), color=color, linewidth=2)
-        # if "loss_std" in group.columns:
-        #     n = group["n"] if "n" in group.columns else None
-        #     b = _band(group["loss_std"], n, error_band)
-        #     if b is not None:
-        #         ax.fill_between(
-        #             group["round"],
-        #             group["loss_mean"] - b,
-        #             group["loss_mean"] + b,
-        #             alpha=0.15, color=color, label="_nolegend_",
-        #         )
-        #         ci_in_legend = True
+        ax.plot(group["round"], group["loss_mean"], label=_strategy_label(strategy), **_strategy_style(strategy))
+        if show_ci and "loss_std" in group.columns:
+            n = group["n"] if "n" in group.columns else None
+            b = _band(group["loss_std"], n, error_band)
+            if b is not None:
+                ax.fill_between(
+                    group["round"],
+                    group["loss_mean"] - b,
+                    group["loss_mean"] + b,
+                    alpha=0.15, color=_strategy_color(strategy), label="_nolegend_",
+                )
+                ci_in_legend = True
 
-    if activation_round is not None:
-        ax.axvline(activation_round, color=ACTIVATION_COLOR, linestyle="--", linewidth=1.5, label="Activation Round")
+    act = loss_by_strategy.attrs.get("activation_round")
+    if act is not None:
+        ax.axvline(act - 1, color=ACTIVATION_COLOR, linestyle="--", linewidth=1.5, label="Pre-Attack Round")
 
     handles, labels = ax.get_legend_handles_labels()
+    if ci_in_legend:
+        handles.append(Patch(facecolor="gray", alpha=0.3))
+        labels.append(band_label)
     ax.set_xlabel("Round")
     ax.set_ylabel("Global Loss")
     ax.xaxis.set_major_locator(MultipleLocator(1))
@@ -752,19 +761,12 @@ def plot_global_loss_by_aggregation_strategy(
 
     max_round = int(loss_by_strategy["round"].max())
     _add_zoom_inset(ax, loss_by_strategy,
-                    x_range=(max_round - 1, max_round),
-                    bbox_to_anchor=(0.10, 0.15, 0.90, 0.95),
+                    x_range=(max_round - 2, max_round),
+                    bbox_to_anchor=(0.25, 0.15, 0.73, 0.95),
                     width="55%", height="40%",
                     loc="lower right",
-                    loc1=3, loc2=4)
-
-    # if activation_round is not None:
-    #     _add_zoom_inset(ax, loss_by_strategy,
-    #                     x_range=(activation_round - 1, activation_round + 1),
-    #                     bbox_to_anchor=(0.05, 0.05, 0.60, 0.60),
-    #                     width="40%", height="40%",
-    #                     loc="lower left",
-    #                     loc1=2, loc2=3)
+                    loc1=3, loc2=4,
+                    y_col="loss_mean")
 
     fig._plot_name = "global_loss_by_aggregation_strategy"
     fig._uuids = loss_by_strategy.attrs.get("experiment_ids", [])
@@ -931,7 +933,7 @@ def plot_merge_weights_by_behavior(agg_weights: pd.DataFrame, stats: pd.DataFram
     """
     fig, ax = plt.subplots(figsize=(9, 4))
 
-    band_label = r"95\% CI" if error_band == "ci" else "±std"
+    band_label = r"95\% CI" if error_band == "ci" else r"±std"
     ci_in_legend = False
     for behavior, group in agg_weights.groupby("behavior"):
         color = BEHAVIOR_COLORS.get(behavior, None)
