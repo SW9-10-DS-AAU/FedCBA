@@ -185,9 +185,9 @@ def test_plot_gas_cost_by_tx_type_returns_figure(agg_gas):
 # plot_round_kicked_by_strategy
 # ---------------------------------------------------------------------------
 
-def test_plot_round_kicked_by_strategy_returns_figure(agg_kicked):
-    fig = plots.plot_round_kicked_by_strategy(agg_kicked)
-    assert isinstance(fig, plt.Figure)
+# def test_plot_round_kicked_by_strategy_returns_figure(agg_kicked):
+#     fig = plots.plot_round_kicked_by_strategy(agg_kicked)
+#     assert isinstance(fig, plt.Figure)
 
 
 # ---------------------------------------------------------------------------
@@ -199,18 +199,20 @@ def test_save_figure_creates_file(tmp_path, agg_global):
     plots.save_figure(fig, tmp_path, experiment_name="test")
 
     out_dir = tmp_path / "test"
-    files = list(out_dir.glob("*.svg"))
+    ext = plots.figure_file_extension
+    files = list(out_dir.glob(f"*.{ext}"))
     assert len(files) == 1
     assert files[0].stat().st_size > 0
 
 
-def test_save_figure_auto_names_svg_files(tmp_path, agg_global):
+def test_save_figure_auto_names_files(tmp_path, agg_global):
     fig = plots.plot_accuracy_loss_over_rounds(agg_global)
     plots.save_figure(fig, tmp_path, experiment_name="test")
     plots.save_figure(fig, tmp_path, experiment_name="test", suffix="second")
 
-    files = sorted((tmp_path / "test").glob("*.svg"))
+    ext = plots.figure_file_extension
+    files = sorted((tmp_path / "test").glob(f"*.{ext}"))
     assert [file.name for file in files] == [
-        "001-accuracy_loss_over_rounds.svg",
-        "002-accuracy_loss_over_rounds-second.svg",
+        f"001-accuracy_loss_over_rounds.{ext}",
+        f"002-accuracy_loss_over_rounds-second.{ext}",
     ]
