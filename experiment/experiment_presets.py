@@ -706,8 +706,8 @@ PRESETS = {
 
         # best freerider
         freerider_start_round=[1],
-        freerider_noise_scale=[0],
-        freerider_attack_type=["delta_weight"],
+        freerider_noise_scale=[0.001],
+        freerider_attack_type=["noise"],
 
         # best malicious
         malicious_start_round=None,
