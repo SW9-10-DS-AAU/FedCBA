@@ -22,6 +22,7 @@ dependencies = [
   "pytest==9.0.1",
   "psutil==6.1.0",
   "jsonpickle",
+  "SciencePlots==2.2.1"
 ]
 
 # Dev-only tools (notebooks, testing, formatting, etc.)

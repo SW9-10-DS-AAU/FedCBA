@@ -683,6 +683,51 @@ PRESETS = {
         number_of_runs=10,
     ),
 
+
+    "comp_agg_cifar": FullPreset(
+        # defaults
+        fork=True,
+        reward=int(1e18),
+        standard_buy_in=int(1e18),
+        min_buy_in=int(1e18),
+        max_buy_in=int(1e18),
+        first_round_fee=0,
+        punish_factor=3,
+        punish_factor_contrib=3,
+        number_of_inactive_contributors=0,
+        force_merge_all=True,      # NOT DEFAULT! experiment-specific
+        use_nobody_is_kicked=True, # NOT DEFAULT! experiment-specific
+
+        # always this
+        use_outlier_detection=[True],
+        contribution_score_strategy=["loss_only"],
+        data_distribution=["random_split"],
+        dirichlet_alpha=None,
+
+        # best freerider
+        freerider_start_round=[1],
+        freerider_noise_scale=[0],
+        freerider_attack_type=["delta_weight"],
+
+        # best malicious
+        malicious_start_round=None,
+        malicious_noise_scale=[0.01],
+        malicious_attack_type=["byzantine"],
+
+        # dataset-specific
+        number_of_good_contributors=6,
+        number_of_bad_contributors=1,
+        number_of_freerider_contributors=1,
+        minimum_rounds=25,
+        epochs=25,
+        batch_size=128,
+
+        # experiment-specific
+        aggregation_rule=["FedAVG", "positives_only", "plus_one_normalize", "binary_switch[positives_only, plus_one_normalize]", "partial_switch[retro, positives_only, plus_one_normalize]"],
+        number_of_runs=10,
+    ),
+
+
     "full_system_mnist": FullPreset( # på spark: 27-05-26. Teams?  Grafer?
         # defaults
         fork=True,
@@ -722,7 +767,8 @@ PRESETS = {
         batch_size=32,
 
         # experiment-specific
-        aggregation_rule=["FedAVG", "positives_only", "plus_one_normalize"],
+        aggregation_rule=["FedAVG", "positives_only", "plus_one_normalize", "binary_switch[positives_only, plus_one_normalize]",
+                          "partial_switch[retro, positives_only, plus_one_normalize]", "GRS_aggregation"],
         number_of_runs=10,
     ),
 
