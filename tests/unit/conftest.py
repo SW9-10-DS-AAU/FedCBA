@@ -1,11 +1,18 @@
 import os
 import random
 import sys
+import matplotlib
 import pytest
 import types
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 from contracts.fl_challenge import FLChallenge
+
+
+@pytest.fixture(scope="session", autouse=True)
+def disable_latex():
+    """SciencePlots enables text.usetex; disable it in CI where LaTeX is absent."""
+    matplotlib.rcParams["text.usetex"] = False
 
 
 @pytest.fixture
