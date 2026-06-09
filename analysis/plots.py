@@ -1094,6 +1094,62 @@ def delete_figure(directory: str | Path, graph_id: str) -> None:
             mappings_path.unlink()
 
 
+def plot_eval_reward_diff_by_role(
+    agg_rewards: pd.DataFrame,
+    error_band: str = "ci",
+) -> plt.Figure:
+    """
+    Grouped bar chart of mean evaluation reward gain (rewarded − staked) per role per round.
+    Bars are centered on zero; y-axis is symmetric [-0.3, 0.3].
+
+    Expects columns: role, round, reward_diff_mean, reward_diff_std, n.
+    """
+    fig, ax = plt.subplots(figsize=(9, 4), constrained_layout=True)
+
+    rounds = sorted(agg_rewards["round"].unique())
+    roles = [r for r in ROLE_ORDER if r in agg_rewards["role"].values]
+    n_roles = len(roles)
+    bar_width = 0.7 / n_roles
+    offsets = np.arange(n_roles) * bar_width - (n_roles - 1) * bar_width / 2
+
+    for i, role in enumerate(roles):
+        grp = agg_rewards[agg_rewards["role"] == role].sort_values("round")
+        color = BEHAVIOR_COLORS.get(role)
+        xpos = [r + offsets[i] for r in rounds if r in grp["round"].values]
+        grp = grp[grp["round"].isin(rounds)]
+        y = grp["reward_diff_mean"].values
+
+        yerr = None
+        if "reward_diff_std" in grp.columns:
+            b = _band(grp["reward_diff_std"], grp["n"] if "n" in grp.columns else None, error_band)
+            if b is not None:
+                yerr = b.values
+
+        ax.bar(xpos, y, width=bar_width, color=color, alpha=0.85,
+               label=ROLE_LABELS.get(role, role),
+               yerr=yerr, capsize=3, error_kw={"linewidth": 0.8})
+
+    act = agg_rewards.attrs.get("activation_round")
+    if act is not None:
+        ax.axvline(act - 1, color=ACTIVATION_COLOR, linestyle="--", linewidth=1.5, label="Pre-Attack Round")
+
+    ax.axhline(0, color="black", linewidth=0.8)
+    ax.set_ylim(-0.3, 0.2)
+    ax.set_title("Evaluation Voting Reward Gain")
+    ax.set_xlabel("Round")
+    ax.set_ylabel("Eval Reward Gain")
+    ax.set_xticks(rounds)
+    ax.set_xticklabels(rounds)
+    ax.legend(fontsize=8)
+    ax.grid(True, alpha=0.3)
+    ax.set_axisbelow(True)
+
+    fig._plot_name = "eval_reward_diff_by_role"
+    fig._uuids = agg_rewards.attrs.get("experiment_ids", [])
+
+    return fig
+
+
 def save_figure(fig: plt.Figure, base_dir, experiment_name=None, suffix: str = "", dpi: int = 300):
     plot_name = getattr(fig, "_plot_name", "figure")
     uuids = getattr(fig, "_uuids", [])
