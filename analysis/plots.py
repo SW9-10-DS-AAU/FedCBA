@@ -20,7 +20,7 @@ plt.style.use(["science", "high-vis"])
 matplotlib.rcParams.update({
     "figure.dpi": 300,
     "pgf.rcfonts": False,
-    # "text.usetex": False,
+    # "text.usetex": False, # Disable this if you do not have local latex installed. Uses latex for rendering fonts.
 })
 figure_file_extensions = ["pgf", "svg", "png", "pdf"]
 figure_file_extension = figure_file_extensions[3]
@@ -136,11 +136,9 @@ def _x_tick_interval(max_round: int) -> int:
     return 1
 
 
-def _inset_layout(max_round: int, y0: float) -> dict:
-    """Return bbox/size kwargs for _add_zoom_inset, scaled to the number of rounds."""
-    if max_round > 15:
-        return dict(bbox_to_anchor=(0.45, y0, 0.53, 0.95), width="45%", height="40%")
-    return dict(bbox_to_anchor=(0.25, y0, 0.73, 0.95), width="55%", height="40%")
+def _inset_layout(y0: float) -> dict:
+    """Return bbox/size kwargs for _add_zoom_inset."""
+    return dict(bbox_to_anchor=(0.45, y0, 0.53, 0.95), width="45%", height="40%")
 
 
 def _add_zoom_inset(
@@ -718,7 +716,7 @@ def plot_global_acc_by_aggregation_strategy(
     max_round = int(acc_by_strategy["round"].max())
     _add_zoom_inset(ax, acc_by_strategy,
                     x_range=(max_round - 2, max_round),
-                    **_inset_layout(max_round, y0=0.45),
+                    **_inset_layout(y0=0.40),
                     loc="lower right",
                     loc1=1, loc2=2,
                     y_col="accuracy_mean")
@@ -780,7 +778,7 @@ def plot_global_loss_by_aggregation_strategy(
     max_round = int(loss_by_strategy["round"].max())
     _add_zoom_inset(ax, loss_by_strategy,
                     x_range=(max_round - 2, max_round),
-                    **_inset_layout(max_round, y0=0.15),
+                    **_inset_layout(y0=0.20),
                     loc="lower right",
                     loc1=3, loc2=4,
                     y_col="loss_mean")
