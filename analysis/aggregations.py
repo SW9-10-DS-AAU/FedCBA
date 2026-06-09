@@ -699,6 +699,55 @@ def agg_merge_stats_by_behavior(users: pd.DataFrame) -> pd.DataFrame:
     return total
 
 
+def agg_eval_reward_diff_by_role(
+    evaluation_rewards: pd.DataFrame,
+    users: pd.DataFrame,
+    metadata: pd.DataFrame,
+    aggregation_rule: str = "FedAVG",
+) -> pd.DataFrame:
+    """
+    Two-stage aggregation of evaluation reward gain (rewarded − staked) by role and round,
+    filtered to a single aggregation strategy (default: FedAVG).
+
+    Stage 1: mean reward_diff per (experiment_id, role, round).
+    Stage 2: mean and std of those per-experiment means across runs.
+
+    Returns columns: role, round, reward_diff_mean, reward_diff_std, n.
+    """
+    _require_nonempty(evaluation_rewards, "evaluation_rewards")
+
+    fedavg_ids = set(metadata.loc[metadata["aggregation_rule"] == aggregation_rule, "experiment_id"])
+    rewards = evaluation_rewards[evaluation_rewards["experiment_id"].isin(fedavg_ids)].copy()
+    filtered_meta = metadata[metadata["experiment_id"].isin(fedavg_ids)]
+
+    _require_nonempty(rewards, f"evaluation_rewards filtered to {aggregation_rule}")
+    _require_consistent_activation(users[users["experiment_id"].isin(fedavg_ids)], filtered_meta)
+
+    user_roles = users[["experiment_id", "round", "user_id", "role"]].drop_duplicates()
+    rewards = rewards.merge(user_roles, on=["experiment_id", "round", "user_id"], how="left")
+    rewards["reward_diff"] = rewards["rewarded"] - rewards["staked"]
+
+    per_experiment = (
+        rewards
+        .groupby(["experiment_id", "role", "round"])
+        .agg(reward_diff=("reward_diff", "mean"))
+        .reset_index()
+    )
+    agg = (
+        per_experiment
+        .groupby(["role", "round"])
+        .agg(
+            reward_diff_mean=("reward_diff", "mean"),
+            reward_diff_std= ("reward_diff", "std"),
+            n=               ("reward_diff", "count"),
+        )
+        .reset_index()
+    )
+    agg.attrs["experiment_ids"] = list(rewards["experiment_id"].unique())
+    agg.attrs["activation_round"] = _get_activation_round(filtered_meta)
+    return agg
+
+
 def agg_wilcoxon_analysis_specific_round_acc(
     runs,
     baseline: str = "FedAVG",
