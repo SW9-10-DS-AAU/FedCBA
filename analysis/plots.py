@@ -128,6 +128,21 @@ def _ordered_strategies(keys):
     return result
 
 
+def _x_tick_interval(max_round: int) -> int:
+    if max_round > 20:
+        return 5
+    if max_round > 12:
+        return 2
+    return 1
+
+
+def _inset_layout(max_round: int, y0: float) -> dict:
+    """Return bbox/size kwargs for _add_zoom_inset, scaled to the number of rounds."""
+    if max_round > 15:
+        return dict(bbox_to_anchor=(0.45, y0, 0.53, 0.95), width="45%", height="40%")
+    return dict(bbox_to_anchor=(0.25, y0, 0.73, 0.95), width="55%", height="40%")
+
+
 def _add_zoom_inset(
     ax: plt.Axes,
     data: pd.DataFrame,
@@ -371,7 +386,8 @@ def plot_grs_by_role(
         labels.append(band_label)
     ax.set_xlabel("Round")
     ax.set_ylabel("Global Reputation Score (ETH)")
-    ax.xaxis.set_major_locator(MultipleLocator(1))
+    ax.xaxis.set_major_locator(MultipleLocator(_x_tick_interval(int(agg_grs["round"].max()))))
+    ax.set_xlim(-0.2, int(agg_grs["round"].max()) + 0.5)
     ax.legend(handles, labels, title="Role:")
     ax.grid(True, alpha=0.3)
     fig._legend_handles = handles
@@ -563,7 +579,8 @@ def plot_grs_by_user(
 
     ax.set_xlabel("Round")
     ax.set_ylabel("Global Reputation Score (ETH)")
-    ax.xaxis.set_major_locator(MultipleLocator(1))
+    ax.xaxis.set_major_locator(MultipleLocator(_x_tick_interval(int(grs_users["round"].max()))))
+    ax.set_xlim(-0.2, int(grs_users["round"].max()) + 0.5)
     ax.legend(title="Users", loc="lower left")
     ax.grid(True, alpha=0.3) # alpha: makes the grid subtle/faint so it doesn't compete with the data
     fig._plot_name = "grs_by_user"
@@ -644,7 +661,7 @@ def plot_grs_by_role_by_aggregation_strategy(data, metadata, res):
         ax2.set_ylabel(r"Exited or Disqualified (\%)")
 
         ax.legend(role_handles, role_labels, loc="upper left")
-        ax2.legend(loc="upper right", bbox_to_anchor=(1, 1))
+        ax2.legend(loc="upper right", bbox_to_anchor=(1, 0.97))
 
         fig.suptitle(f"Agg. Strategy: {_strategy_label(strategy)}", y=1.05)
 
@@ -693,15 +710,15 @@ def plot_global_acc_by_aggregation_strategy(
         labels.append(band_label)
     ax.set_xlabel("Round")
     ax.set_ylabel(r"Global Accuracy (\%)")
-    ax.xaxis.set_major_locator(MultipleLocator(1))
+    ax.xaxis.set_major_locator(MultipleLocator(_x_tick_interval(int(acc_by_strategy["round"].max()))))
+    ax.set_xlim(-0.2, int(acc_by_strategy["round"].max()) + 0.5)
     ax.legend(handles, labels, title="Agg. Strategy", fontsize=8)
     ax.grid(True, alpha=0.3)
 
     max_round = int(acc_by_strategy["round"].max())
     _add_zoom_inset(ax, acc_by_strategy,
                     x_range=(max_round - 2, max_round),
-                    bbox_to_anchor=(0.25, 0.45, 0.73, 0.95),
-                    width="55%", height="40%",
+                    **_inset_layout(max_round, y0=0.45),
                     loc="lower right",
                     loc1=1, loc2=2,
                     y_col="accuracy_mean")
@@ -755,15 +772,15 @@ def plot_global_loss_by_aggregation_strategy(
         labels.append(band_label)
     ax.set_xlabel("Round")
     ax.set_ylabel("Global Loss")
-    ax.xaxis.set_major_locator(MultipleLocator(1))
+    ax.xaxis.set_major_locator(MultipleLocator(_x_tick_interval(int(loss_by_strategy["round"].max()))))
+    ax.set_xlim(-0.2, int(loss_by_strategy["round"].max()) + 0.5)
     ax.legend(handles, labels, title="Agg. Strategy:", fontsize=8)
     ax.grid(True, alpha=0.3)
 
     max_round = int(loss_by_strategy["round"].max())
     _add_zoom_inset(ax, loss_by_strategy,
                     x_range=(max_round - 2, max_round),
-                    bbox_to_anchor=(0.25, 0.15, 0.73, 0.95),
-                    width="55%", height="40%",
+                    **_inset_layout(max_round, y0=0.15),
                     loc="lower right",
                     loc1=3, loc2=4,
                     y_col="loss_mean")
@@ -974,7 +991,8 @@ def plot_merge_weights_by_behavior(agg_weights: pd.DataFrame, stats: pd.DataFram
 
     ax.set_xlabel("Round")
     ax.set_ylabel("Merge Weight")
-    ax.xaxis.set_major_locator(MultipleLocator(1))
+    ax.xaxis.set_major_locator(MultipleLocator(_x_tick_interval(int(agg_weights["round"].max()))))
+    ax.set_xlim(-0.2, int(agg_weights["round"].max()) + 0.5)
     ax.grid(True, alpha=0.3)
 
     if stats is not None:
