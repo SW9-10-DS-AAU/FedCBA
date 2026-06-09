@@ -1109,9 +1109,10 @@ def plot_eval_reward_diff_by_role(
     rounds = sorted(agg_rewards["round"].unique())
     roles = [r for r in ROLE_ORDER if r in agg_rewards["role"].values]
     n_roles = len(roles)
-    bar_width = 0.7 / n_roles
+    bar_width = 0.65 / n_roles
     offsets = np.arange(n_roles) * bar_width - (n_roles - 1) * bar_width / 2
 
+    handles, labels = [], []
     for i, role in enumerate(roles):
         grp = agg_rewards[agg_rewards["role"] == role].sort_values("round")
         color = BEHAVIOR_COLORS.get(role)
@@ -1125,23 +1126,29 @@ def plot_eval_reward_diff_by_role(
             if b is not None:
                 yerr = b.values
 
-        ax.bar(xpos, y, width=bar_width, color=color, alpha=0.85,
-               label=ROLE_LABELS.get(role, role),
-               yerr=yerr, capsize=3, error_kw={"linewidth": 0.8})
+        bars = ax.bar(xpos, y, width=bar_width, color=color, alpha=0.85,
+                      yerr=yerr, capsize=3, error_kw={"linewidth": 0.8})
+        handles.append(bars)
+        labels.append(ROLE_LABELS.get(role, role))
 
     act = agg_rewards.attrs.get("activation_round")
     if act is not None:
-        ax.axvline(act - 1, color=ACTIVATION_COLOR, linestyle="--", linewidth=1.5, label="Pre-Attack Round")
+        ax.axvspan(act - 1.5, act - 0.5, color=ACTIVATION_COLOR, alpha=0.2, zorder=0)
+        handles.append(Patch(facecolor=ACTIVATION_COLOR, alpha=0.4))
+        labels.append("Pre-Attack Round")
+
+    for r in rounds[:-1]:
+        ax.axvline(r + 0.5, color="gray", linewidth=0.5, alpha=0.4, zorder=0)
 
     ax.axhline(0, color="black", linewidth=0.8)
-    ax.set_ylim(-0.3, 0.2)
-    ax.set_title("Evaluation Voting Reward Gain")
+    ax.set_ylim(-0.4, 0.3)
     ax.set_xlabel("Round")
-    ax.set_ylabel("Eval Reward Gain")
+    ax.set_ylabel("Evaluation Voting Reward Gain")
+    ax.set_xlim(rounds[0] - 0.4, rounds[-1] + 0.4)
     ax.set_xticks(rounds)
     ax.set_xticklabels(rounds)
-    ax.legend(fontsize=8)
-    ax.grid(True, alpha=0.3)
+    ax.legend(handles, labels, fontsize=8)
+    ax.grid(True, alpha=0.3, axis="y")
     ax.set_axisbelow(True)
 
     fig._plot_name = "eval_reward_diff_by_role"

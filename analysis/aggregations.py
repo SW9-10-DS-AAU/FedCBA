@@ -775,11 +775,10 @@ def agg_eval_reward_diff_by_role(
     users: pd.DataFrame,
     metadata: pd.DataFrame,
     aggregation_rule: str = "FedAVG",
-    dataset: str | None = None,
 ) -> pd.DataFrame:
     """
     Two-stage aggregation of evaluation reward gain (rewarded − staked) by role and round,
-    filtered to a single aggregation strategy (default: FedAVG) and optionally by dataset.
+    filtered to a single aggregation strategy (default: FedAVG).
 
     Stage 1: mean reward_diff per (experiment_id, role, round).
     Stage 2: mean and std of those per-experiment means across runs.
@@ -788,14 +787,11 @@ def agg_eval_reward_diff_by_role(
     """
     _require_nonempty(evaluation_rewards, "evaluation_rewards")
 
-    meta = metadata.copy()
-    if dataset is not None:
-        meta = meta[meta["dataset"].str.lower().str.contains(dataset.lower())]
-    fedavg_ids = set(meta.loc[meta["aggregation_rule"] == aggregation_rule, "experiment_id"])
+    fedavg_ids = set(metadata.loc[metadata["aggregation_rule"] == aggregation_rule, "experiment_id"])
     rewards = evaluation_rewards[evaluation_rewards["experiment_id"].isin(fedavg_ids)].copy()
-    filtered_meta = meta[meta["experiment_id"].isin(fedavg_ids)]
+    filtered_meta = metadata[metadata["experiment_id"].isin(fedavg_ids)]
 
-    _require_nonempty(rewards, f"evaluation_rewards filtered to {aggregation_rule}" + (f"/{dataset}" if dataset else ""))
+    _require_nonempty(rewards, f"evaluation_rewards filtered to {aggregation_rule}")
     _require_consistent_activation(users[users["experiment_id"].isin(fedavg_ids)], filtered_meta)
 
     user_roles = users[["experiment_id", "round", "user_id", "role"]].drop_duplicates()
