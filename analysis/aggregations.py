@@ -741,7 +741,7 @@ def agg_wilcoxon_analysis_specific_round_acc(
             n = min(len(b_vals), len(o_vals))
             try:
                 _, p = _wilcoxon(o_vals[:n], b_vals[:n], alternative=alternative)
-                row[target_round] = round(p, 4)
+                row[target_round] = round(p,3)
             except ValueError:
                 row[target_round] = np.nan
         rows.append(row)
@@ -808,7 +808,7 @@ def agg_wilcoxon_analysis_specific_round_loss(
             n = min(len(b_vals), len(o_vals))
             try:
                 _, p = _wilcoxon(o_vals[:n], b_vals[:n], alternative=alternative)
-                row[target_round] = round(p, 4)
+                row[target_round] = round(p,3)
             except ValueError:
                 row[target_round] = np.nan
         rows.append(row)
