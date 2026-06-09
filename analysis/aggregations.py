@@ -699,7 +699,7 @@ def agg_merge_stats_by_behavior(users: pd.DataFrame) -> pd.DataFrame:
     return total
 
 
-def agg_wilcoxon_analysis(
+def agg_wilcoxon_analysis_specific_round_acc(
     runs,
     baseline: str = "FedAVG",
     rounds: list | None = None,
@@ -758,7 +758,7 @@ def agg_wilcoxon_analysis(
             n = min(len(b_vals), len(o_vals))
             try:
                 _, p = _wilcoxon(o_vals[:n], b_vals[:n], alternative=alternative)
-                row[target_round] = round(p, 4)
+                row[target_round] = round(p,3)
             except ValueError:
                 row[target_round] = np.nan
         rows.append(row)
@@ -769,4 +769,201 @@ def agg_wilcoxon_analysis(
     result.attrs["experiment_ids"] = [r.experiment_id for r in runs]
     return result
 
+
+def agg_wilcoxon_analysis_specific_round_loss(
+        runs,
+        baseline: str = "FedAVG",
+        rounds: list | None = None,
+        alternative: str = "less",  # Ændret til "less", da vi ønsker LAVERE loss end baselinen
+) -> pd.DataFrame:
+    """
+    Pairwise Wilcoxon signed-rank test comparing each aggregation rule against a baseline
+    at one or more specific rounds based on global model loss.
+
+    Args:
+        runs:        List of RunData objects. Each must have metadata key 'aggregation_rule'
+                     and a rounds_global DataFrame with 'round' and 'objective_global_loss'.
+        baseline:    The aggregation rule to compare against (default: "FedAVG").
+        rounds:      Rounds to test at. If None, uses all rounds present in the data.
+        alternative: "less"      — test if other < baseline (default for loss)
+                     "greater"   — test if other > baseline
+                     "two-sided" — test if other != baseline
+
+    Returns:
+        DataFrame with rules as index, rounds as columns, p-values as floats.
+    """
+    records = []
+    for r in runs:
+        rule = r.metadata.get("aggregation_rule")
+        for row in r.rounds_global.itertuples():
+            records.append({
+                "rule": rule,
+                "round": row.round,
+                # Henter loss i stedet for accuracy (tjek navnet 'objective_global_loss' i dine data)
+                "loss": row.objective_global_loss,
+            })
+
+    df = pd.DataFrame(records)
+
+    if rounds is None:
+        rounds = sorted(df["round"].unique())
+
+    all_rules = [r for r in df["rule"].unique() if r != baseline]
+    baseline_data = df[df["rule"] == baseline]
+
+    rows = []
+    for rule in all_rules:
+        row = {"rule": rule}
+        for target_round in rounds:
+            # Filtrerer på 'loss' kolonnen
+            b_vals = baseline_data[baseline_data["round"] == target_round]["loss"].values
+            o_vals = df[(df["rule"] == rule) & (df["round"] == target_round)]["loss"].values
+
+            if len(b_vals) == 0 or len(o_vals) == 0:
+                row[target_round] = np.nan
+                continue
+            n = min(len(b_vals), len(o_vals))
+            try:
+                _, p = _wilcoxon(o_vals[:n], b_vals[:n], alternative=alternative)
+                row[target_round] = round(p,3)
+            except ValueError:
+                row[target_round] = np.nan
+        rows.append(row)
+
+    result = pd.DataFrame(rows).set_index("rule")
+    result.index.name = f"rule (vs {baseline})"
+    result.attrs["name"] = "wilcoxon_analysis_loss"
+    result.attrs["experiment_ids"] = [r.experiment_id for r in runs]
+    return result
+
+
+def agg_wilcoxon_analysis_acc(
+        runs,
+        baseline: str = "FedAVG",
+        rounds: list | None = None,
+        alternative: str = "greater",
+) -> pd.DataFrame:
+    """
+    Tjekker om strategierne er statistisk bedre i SAMTLIGE runder op til de angivne milepæle.
+    Returnerer den dårligste (højeste) p-værdi fundet i tidsintervallerne.
+    """
+    if rounds is None:
+        rounds = [10, 25, 50]  # Standard checkpoints hvis intet er angivet
+
+    records = []
+    for r in runs:
+        rule = r.metadata.get("aggregation_rule")
+        for row in r.rounds_global.itertuples():
+            records.append({
+                "rule": rule,
+                "round": row.round,
+                "accuracy": row.objective_global_accuracy,
+            })
+
+    df = pd.DataFrame(records)
+    all_rules = [r for r in df["rule"].unique() if r != baseline]
+    baseline_data = df[df["rule"] == baseline]
+
+    rows = []
+    for rule in all_rules:
+        row = {"rule": rule}
+
+        # Loop igennem hver milepæl (f.eks. 10, 25, 50)
+        for milestone_round in rounds:
+            worst_p = 0.0
+
+            # Generer alle runder fra 1 op til og med milepælen
+            all_rounds_up_to_milestone = list(range(1, milestone_round + 1))
+
+            for target_round in all_rounds_up_to_milestone:
+                b_vals = baseline_data[baseline_data["round"] == target_round]["accuracy"].values
+                o_vals = df[(df["rule"] == rule) & (df["round"] == target_round)]["accuracy"].values
+
+                if len(b_vals) == 0 or len(o_vals) == 0:
+                    worst_p = np.nan
+                    break
+
+                n = min(len(b_vals), len(o_vals))
+                try:
+                    _, p = _wilcoxon(o_vals[:n], b_vals[:n], alternative=alternative)
+                    # Vi gemmer den HØJESTE p-værdi fundet i hele forløbet indtil nu
+                    if p > worst_p:
+                        worst_p = p
+                except ValueError:
+                    worst_p = np.nan
+                    break
+
+            # Gem den dårligste p-værdi for denne specifikke milepæl-kolonne
+            col_name = f"Rounds 1-{milestone_round}"
+            row[col_name] = round(worst_p, 4) if not np.isnan(worst_p) else np.nan
+
+        rows.append(row)
+
+    result = pd.DataFrame(rows).set_index("rule")
+    result.index.name = f"rule (vs {baseline})"
+    return result
+
+def agg_wilcoxon_analysis_loss(
+    runs,
+    baseline: str = "FedAVG",
+    rounds: list | None = None,
+    alternative: str = "less",  # Ændret til "less", da vi ønsker LAVERE loss end baselinen
+) -> pd.DataFrame:
+    """
+    Tjekker om strategierne har et statistisk lavere LOSS i SAMTLIGE runder op til de angivne milepæle.
+    Returnerer den dårligste (højeste) p-værdi fundet i tidsintervallerne.
+    """
+    if rounds is None:
+        rounds = [10, 25, 50]
+
+    records = []
+    for r in runs:
+        rule = r.metadata.get("aggregation_rule")
+        for row in r.rounds_global.itertuples():
+            records.append({
+                "rule": rule,
+                "round": row.round,
+                # Ændr eventuelt navnet 'objective_global_loss' til det præcise navn i dine RunData objekter
+                "loss": row.objective_global_loss,
+            })
+
+    df = pd.DataFrame(records)
+    all_rules = [r for r in df["rule"].unique() if r != baseline]
+    baseline_data = df[df["rule"] == baseline]
+
+    rows = []
+    for rule in all_rules:
+        row = {"rule": rule}
+
+        for milestone_round in rounds:
+            worst_p = 0.0
+            all_rounds_up_to_milestone = list(range(1, milestone_round + 1))
+
+            for target_round in all_rounds_up_to_milestone:
+                # Trækker tabeller ud baseret på 'loss' i stedet for 'accuracy'
+                b_vals = baseline_data[baseline_data["round"] == target_round]["loss"].values
+                o_vals = df[(df["rule"] == rule) & (df["round"] == target_round)]["loss"].values
+
+                if len(b_vals) == 0 or len(o_vals) == 0:
+                    worst_p = np.nan
+                    break
+
+                n = min(len(b_vals), len(o_vals))
+                try:
+                    _, p = _wilcoxon(o_vals[:n], b_vals[:n], alternative=alternative)
+                    # Vi gemmer stadig den HØJESTE p-værdi (den tættest på ikke at være signifikant)
+                    if p > worst_p:
+                        worst_p = p
+                except ValueError:
+                    worst_p = np.nan
+                    break
+
+            col_name = f"Rounds 1-{milestone_round}"
+            row[col_name] = round(worst_p, 4) if not np.isnan(worst_p) else np.nan
+
+        rows.append(row)
+
+    result = pd.DataFrame(rows).set_index("rule")
+    result.index.name = f"rule (vs {baseline})"
+    return result
 

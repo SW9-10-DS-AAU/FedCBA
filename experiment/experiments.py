@@ -35,9 +35,9 @@ RESULTDATAFOLDER = REPO_ROOT / "data" / "runs" / "experiments"
 
 # ---------------- PRESET SEARCH SPACE ----------------
 
-preset = "test"
-_use_defaults = True
-datasets = [ DATASETFAST ]
+preset = "comp_agg_cifar"
+_use_defaults = False
+datasets = [ DATASETSLOW ]
 
 
 # ---------------- OUTPUT ----------------
