@@ -1,7 +1,6 @@
 * text=auto
 
-data/releases/cifar.zip filter=lfs diff=lfs merge=lfs -text
-data/releases/mnist.zip filter=lfs diff=lfs merge=lfs -text
+data/releases/* filter=lfs diff=lfs merge=lfs -text
 *.zip filter=lfs diff=lfs merge=lfs -text
 
 *.ipynb filter=nbstripout
