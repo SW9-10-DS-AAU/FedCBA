@@ -66,6 +66,7 @@ MERGE_META_KEYS = [
     "malicious_noise_scale",
     "aggregation_rule",
     "force_merge_all",
+    "use_nobody_is_kicked",
     "number_of_good_contributors",
     "number_of_bad_contributors",
     "number_of_freerider_contributors",

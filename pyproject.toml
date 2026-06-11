@@ -22,6 +22,7 @@ dependencies = [
   "pytest==9.0.1",
   "psutil==6.1.0",
   "jsonpickle",
+  "SciencePlots==2.2.1"
 ]
 
 # Dev-only tools (notebooks, testing, formatting, etc.)
@@ -67,7 +68,6 @@ exclude_lines = [
   "pragma: no cover",
   "pragma: openfl",   # legacy openfl code
   "pragma: p9",       # P9-era code
-  "pragma: p10",      # P10-era code (probably keep covered, but available)
   "pragma: unknown"   # Unknown origin
 ]
 

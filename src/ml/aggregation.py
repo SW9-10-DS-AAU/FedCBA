@@ -40,9 +40,7 @@ def the_merge(pm, _current_round_no, _users, aggregation_rule: str, merge_weight
 
     print("Using aggregation rule: {}".format(aggregation_rule))
 
-    # -------------------------
-    # Compute weights (UNIFIED)
-    # -------------------------
+    # Compute weights
     n_clients = len(client_models)
 
     # Agg. strategies not using users_contrib_scores are fixed with a lambda capturing the input each function need.
@@ -108,9 +106,7 @@ def the_merge(pm, _current_round_no, _users, aggregation_rule: str, merge_weight
 
     assert abs(sum(users_merge_weights.values()) - 1.0) < 1e-6, "Aggregation weights must sum to 1"
 
-    # -------------------------
-    # Cache client state_dicts (IMPORTANT OPTIMIZATION)
-    # -------------------------
+    # Cache client state_dicts
     client_state_dicts = [m.state_dict() for m in client_models]
     ordered_weights = [users_merge_weights[u.address] for u in _users]
 
@@ -136,9 +132,7 @@ def the_merge(pm, _current_round_no, _users, aggregation_rule: str, merge_weight
 
         pm.global_model.load_state_dict(global_dict)
 
-    # -------------------------
     # Evaluation
-    # -------------------------
     loss, accuracy = training.test(pm.global_model, pm.test, DEVICE)
     pm.accuracy.append(accuracy)
     pm.loss.append(loss)
@@ -149,9 +143,7 @@ def the_merge(pm, _current_round_no, _users, aggregation_rule: str, merge_weight
     print_divider()
     print(b("Merged Model: Accuracy {:>3.0f} % | Loss {:>6,.2f}".format(accuracy * 100, loss)))
 
-    # -------------------------
     # Distribute global model
-    # -------------------------
     for u in pm.participants:
         # Changed from deepcopy(u.model): keep only the pre-merge tensor state needed by scoring/attacks.
         # This prevents accidental aliasing while avoiding the overhead of cloning full nn.Module objects.
@@ -312,7 +304,8 @@ def partial_switch_loss_retrospective(users_contrib_scores, avg_prior_losses, fu
     # Map ratio → angle [0°, 90°] → sine blend weight.
     # sin(0°) = 0  → loss plateauing  → fully func_2 (soft/rewarding)
     # sin(90°) = 1 → max improvement  → fully func_1 (strict/conservative)
-    # Sine gives a slow start and fast finish: cautious early, more aggressive as convergence grows.
+    # Sine gives a fast start and slow finish: a weak improvement signal already shifts noticeable
+    # weight toward func_1, with smooth saturation as r → 1. The curve is concave on [0, π/2].
     alpha = math.sin(math.radians(
         improvement_ratio * 90.0))  # weight for func_1   0.33 → 30° → sin(30°)=0.5
     beta = 1.0 - alpha  # weight for func_2  1 - 0.5 = 0.5
@@ -344,7 +337,6 @@ def partial_switch_loss_retrospective(users_contrib_scores, avg_prior_losses, fu
     return {addr: w / total for addr, w in combined.items()}
 
 
-# OLD — BUG: division by zero when all scores <= 0
 def positives_only(users_contrib_scores: dict):
      positive_sum = sum(score for score in users_contrib_scores.values() if score > 0)
      if positive_sum <= 0:
@@ -353,7 +345,6 @@ def positives_only(users_contrib_scores: dict):
      return aggregation_scores
 
 
-# OLD — BUG: denominator n+1 is only correct when scores already sum to 1
 def plus_one_normalize(users_contrib_scores: dict):
      # normalized_scores = [score + 1 for score in users_contrib_scores]
      normalized_scores = {user_id: score + 1 for user_id, score in users_contrib_scores.items()}
@@ -362,7 +353,6 @@ def plus_one_normalize(users_contrib_scores: dict):
      return aggregation_scores
 
 
-# OLD — BUG: denominator n*more_than_one+1 is only correct when scores already sum to 1
 def plus_more_than_one_normalize(users_contrib_scores: dict, more_than_one=1.1):
      normalized_scores = {user_id: score + more_than_one for user_id, score in users_contrib_scores.items()}
      sum_ = sum(normalized_scores.values())

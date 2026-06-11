@@ -899,9 +899,10 @@ class FLChallenge(ConnectionHelper):
           4) Register slots & provide hashed weights
           5) Exchange and verify models
           6) Evaluation & feedback
-          7) Merge models
-          8) Compute contribution scores
-          9) Close round, print summary
+          7a) [dotproduct only] Merge models, then compute contribution scores
+          7b) [all others]      Compute contribution scores, close round, then merge
+          8) Check and exit losing users, process on-chain exits
+          9) Log round and write results
         At the end, all users exit the system.
         """
 

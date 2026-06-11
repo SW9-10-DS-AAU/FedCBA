@@ -18,7 +18,7 @@ import ml.evaluation as evaluation
 from contracts.contribution import (
     calc_contribution_scores_dotproduct,
     remove_outliers_mad,
-    normalize_contribution_scores_new,
+    normalize_contribution_scores,
     contribution_score,
     # calc_contribution_score,
     # calc_contribution_scores_accuracy,
@@ -94,7 +94,7 @@ class TestNewContribCalcforLossOrAcc:
 
     def test_contribution_scenarios(self, raw_input, baseline, metric, label):
         # 1. Run the function to get contribution scores
-        res = normalize_contribution_scores_new(raw_input, baseline, metric)
+        res = normalize_contribution_scores(raw_input, baseline, metric)
 
         # 2. Calculate difference from accuracy/loss compared to global last round
         diffs = [v - baseline for v in raw_input]
@@ -122,7 +122,7 @@ class TestNewContribCalcforLossOrAcc:
         metric = "accuracy"
 
         # 1. Recieve the correct contribution scores for the given input (before sabotage)
-        correct_res = normalize_contribution_scores_new(raw_input, baseline, metric)
+        correct_res = normalize_contribution_scores(raw_input, baseline, metric)
         # Expected: [0.5, 0.5, 0.0]
 
         # 2. SABOTAGE: Changing the scores to break the axioms
@@ -162,7 +162,7 @@ class TestNewContribCalcforLossOrAcc:
         metric = "loss"
 
         # 1. Receive the correct contribution scores for the given input (before sabotage)
-        correct_res = normalize_contribution_scores_new(raw_input_loss, baseline_loss, metric)
+        correct_res = normalize_contribution_scores(raw_input_loss, baseline_loss, metric)
 
         # 2. SABOTAGE: Changing the scores to break the axioms
         sabotaged_res = [0.7, 0.4, 0.2]
@@ -841,16 +841,16 @@ class TestCalcContributionScoresMAD:
 class TestNormalizeContributionScores:
 
     def test_accuracy_function_normalizes_positive_deltas(self):
-        scores = normalize_contribution_scores_new([6, 8], 4, "accuracy")
+        scores = normalize_contribution_scores([6, 8], 4, "accuracy")
         assert scores == [pytest.approx(2 / 6), pytest.approx(4 / 6)]
 
     def test_accuracy_function_returns_uniform_when_sum_zero(self):
-        scores = normalize_contribution_scores_new([5, 5, 5], 5, "accuracy")
+        scores = normalize_contribution_scores([5, 5, 5], 5, "accuracy")
         assert scores == [pytest.approx(1 / 3)] * 3
 
     def test_accuracy_function_raises_on_empty(self):
         with pytest.raises(Exception):
-            normalize_contribution_scores_new([], 0, "accuracy")
+            normalize_contribution_scores([], 0, "accuracy")
 
 
 class TestRemoveOutliersMAD:

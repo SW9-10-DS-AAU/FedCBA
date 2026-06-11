@@ -1,4 +1,15 @@
 import pandas as pd
+import numpy as np
+from scipy.stats import wilcoxon as _wilcoxon
+
+
+def _get_activation_round(metadata: pd.DataFrame) -> int | None:
+    for col in ("freerider_start_round", "malicious_start_round"):
+        if col in metadata.columns:
+            val = metadata[col].dropna().mode()
+            if not val.empty:
+                return int(val.iloc[0])
+    return None
 
 
 def _require_nonempty(df: pd.DataFrame, name: str) -> None:
@@ -177,6 +188,7 @@ def agg_grs_by_role(merged_users: pd.DataFrame, metadata: pd.DataFrame) -> pd.Da
         .reset_index()
     )
     agg.attrs["experiment_ids"] = list(merged_users["experiment_id"].unique())
+    agg.attrs["activation_round"] = _get_activation_round(metadata)
     return agg
 
 
@@ -280,6 +292,7 @@ def global_acc_by_aggregation_strategy(acc_over_agg: pd.DataFrame, metadata: pd.
         .reset_index()
     )
     agg.attrs["experiment_ids"] = list(acc_over_agg["experiment_id"].unique())
+    agg.attrs["activation_round"] = _get_activation_round(metadata)
     return agg
 
 
@@ -312,6 +325,7 @@ def global_loss_by_aggregation_strategy(loss_over_agg: pd.DataFrame, metadata: p
         .reset_index()
     )
     agg.attrs["experiment_ids"] = list(loss_over_agg["experiment_id"].unique())
+    agg.attrs["activation_round"] = _get_activation_round(metadata)
     return agg
 
 
@@ -548,6 +562,108 @@ def agg_merge_weights_by_behavior(users: pd.DataFrame) -> pd.DataFrame:
     agg.attrs["experiment_ids"] = list(users["experiment_id"].unique())
     return agg
 
+def agg_malicious_attack_summary(runs) -> pd.DataFrame:
+    """
+    Mean final accuracy and loss per (attack_type, scale) across a list of RunData objects.
+    Sorted from most to least damaging (lowest accuracy first).
+
+    Expected metadata keys: malicious_attack_type, malicious_noise_scale.
+    Expected rounds_global columns: objective_global_accuracy, objective_global_loss.
+
+    Returns columns: attack_type, scale, final_accuracy, accuracy_std, final_loss, loss_std.
+    """
+    records = []
+    for r in runs:
+        meta = r.metadata
+        attack_type = meta.get("malicious_attack_type")
+        scale = meta.get("malicious_noise_scale")
+        global_df = r.rounds_global
+        if global_df is None or len(global_df) == 0:
+            continue
+        last = global_df.iloc[-1]
+        records.append({
+            "attack_type": attack_type,
+            "scale": float(scale),
+            "final_accuracy": last["objective_global_accuracy"],
+            "final_loss": last["objective_global_loss"],
+        })
+
+    df = pd.DataFrame(records)
+    if df.empty:
+        return df
+
+    result = (
+        df.groupby(["attack_type", "scale"])
+        .agg(
+            final_accuracy=("final_accuracy", "mean"),
+            accuracy_std=  ("final_accuracy", "std"),
+            final_loss=    ("final_loss",     "mean"),
+            loss_std=      ("final_loss",     "std"),
+        )
+        .reset_index()
+        .sort_values("final_accuracy")
+        .reset_index(drop=True)
+    )
+    result.attrs["name"] = "best_malicious_attack"
+    result.attrs["experiment_ids"] = [r.experiment_id for r in runs]
+    return result
+
+
+def agg_freerider_strategy_summary(runs) -> pd.DataFrame:
+    """
+    Mean rounds active per freerider strategy across a list of RunData objects.
+
+    Per run, the freeriders are averaged first so each run contributes one
+    observation — this prevents giving a run with more freeriders undue influence.
+
+    Expected metadata keys: freerider_attack_type, freerider_noise_scale.
+    Expected rounds_users columns: behavior, state, user_id, round.
+
+    Returns columns: strategy, avg_rounds_active, std_rounds_active.
+    Sorted from most to least effective (most rounds active first).
+    """
+    records = []
+    for r in runs:
+        meta = r.metadata
+        attack_type = meta.get("freerider_attack_type", "unknown")
+        scale = meta.get("freerider_noise_scale")
+
+        users_df = r.rounds_users
+        if users_df is None or len(users_df) == 0:
+            continue
+
+        freeriders = users_df[users_df["behavior"] == "freerider"]
+        if freeriders.empty:
+            continue
+
+        run_rounds = []
+        for _, user_data in freeriders.groupby("user_id"):
+            active = user_data[user_data["state"] != "disqualified"]
+            run_rounds.append(len(active))
+
+        label = "delta_weight" if attack_type == "delta_weight" else f"noise={scale}"
+        records.append({
+            "strategy": label,
+            "avg_rounds_active": np.mean(run_rounds),
+        })
+
+    df = pd.DataFrame(records)
+    if df.empty:
+        return df
+
+    result = (
+        df.groupby("strategy")
+        .agg(
+            avg_rounds_active=("avg_rounds_active", "mean"),
+            std_rounds_active=("avg_rounds_active", "std"),
+        )
+        .reset_index()
+        .sort_values("avg_rounds_active", ascending=False)
+        .reset_index(drop=True)
+    )
+    result.attrs["name"] = "best_freerider_attack"
+    result.attrs["experiment_ids"] = [r.experiment_id for r in runs]
+    return result
 
 def agg_merge_stats_by_behavior(users: pd.DataFrame) -> pd.DataFrame:
     # Exclude round 0 (initialization round — no merging occurs)
@@ -582,4 +698,321 @@ def agg_merge_stats_by_behavior(users: pd.DataFrame) -> pd.DataFrame:
     total["pct_merged"] = total["rounds_merged"] / total["total_rounds"] * 100
     return total
 
+
+def agg_eval_reward_diff_by_role(
+    evaluation_rewards: pd.DataFrame,
+    users: pd.DataFrame,
+    metadata: pd.DataFrame,
+    aggregation_rule: str = "FedAVG",
+) -> pd.DataFrame:
+    """
+    Two-stage aggregation of evaluation reward gain (rewarded − staked) by role and round,
+    filtered to a single aggregation strategy (default: FedAVG).
+
+    Stage 1: mean reward_diff per (experiment_id, role, round).
+    Stage 2: mean and std of those per-experiment means across runs.
+
+    Returns columns: role, round, reward_diff_mean, reward_diff_std, n.
+    """
+    _require_nonempty(evaluation_rewards, "evaluation_rewards")
+
+    fedavg_ids = set(metadata.loc[metadata["aggregation_rule"] == aggregation_rule, "experiment_id"])
+    rewards = evaluation_rewards[evaluation_rewards["experiment_id"].isin(fedavg_ids)].copy()
+    filtered_meta = metadata[metadata["experiment_id"].isin(fedavg_ids)]
+
+    _require_nonempty(rewards, f"evaluation_rewards filtered to {aggregation_rule}")
+    _require_consistent_activation(users[users["experiment_id"].isin(fedavg_ids)], filtered_meta)
+
+    user_roles = users[["experiment_id", "round", "user_id", "role"]].drop_duplicates()
+    rewards = rewards.merge(user_roles, on=["experiment_id", "round", "user_id"], how="left")
+    rewards["reward_diff"] = rewards["rewarded"] - rewards["staked"]
+
+    per_experiment = (
+        rewards
+        .groupby(["experiment_id", "role", "round"])
+        .agg(reward_diff=("reward_diff", "mean"))
+        .reset_index()
+    )
+    agg = (
+        per_experiment
+        .groupby(["role", "round"])
+        .agg(
+            reward_diff_mean=("reward_diff", "mean"),
+            reward_diff_std= ("reward_diff", "std"),
+            n=               ("reward_diff", "count"),
+        )
+        .reset_index()
+    )
+    agg.attrs["experiment_ids"] = list(rewards["experiment_id"].unique())
+    agg.attrs["activation_round"] = _get_activation_round(filtered_meta)
+    return agg
+
+
+def agg_wilcoxon_analysis_specific_round_acc(
+    runs,
+    baseline: str = "FedAVG",
+    rounds: list | None = None,
+    alternative: str = "greater",
+) -> pd.DataFrame:
+    """
+    Pairwise Wilcoxon signed-rank test comparing each aggregation rule against a baseline
+    at one or more specific rounds.
+
+
+    Args:
+        runs:        List of RunData objects. Each must have metadata key 'aggregation_rule'
+                     and a rounds_global DataFrame with 'round' and 'objective_global_accuracy'.
+        baseline:    The aggregation rule to compare against (default: "FedAVG").
+        rounds:      Rounds to test at. If None, uses all rounds present in the data.
+        alternative: "greater"   — test if other > baseline (default)
+                     "less"      — test if other < baseline
+                     "two-sided" — test if other != baseline
+
+    Returns:
+        DataFrame with rules as index, rounds as columns, p-values as floats.
+        NaN where a round is not available for that rule.
+        attrs["name"] and attrs["experiment_ids"] are set for save_dataframe compatibility.
+    """
+
+    #   With alternative="greater" it tests whether the other strategy's accuracy is higher than FedAvg's accuracy. A low p-value means the
+    #   other strategy is significantly better than baseline.
+
+    records = []
+    for r in runs:
+        rule = r.metadata.get("aggregation_rule")
+        for row in r.rounds_global.itertuples():
+            records.append({
+                "rule": rule,
+                "round": row.round,
+                "accuracy": row.objective_global_accuracy,
+            })
+
+    df = pd.DataFrame(records)
+
+    if rounds is None:
+        rounds = sorted(df["round"].unique())
+
+    all_rules = [r for r in df["rule"].unique() if r != baseline]
+    baseline_data = df[df["rule"] == baseline]
+
+    rows = []
+    for rule in all_rules:
+        row = {"rule": rule}
+        for target_round in rounds:
+            b_vals = baseline_data[baseline_data["round"] == target_round]["accuracy"].values
+            o_vals = df[(df["rule"] == rule) & (df["round"] == target_round)]["accuracy"].values
+            if len(b_vals) == 0 or len(o_vals) == 0:
+                row[target_round] = np.nan
+                continue
+            n = min(len(b_vals), len(o_vals))
+            try:
+                _, p = _wilcoxon(o_vals[:n], b_vals[:n], alternative=alternative)
+                row[target_round] = round(p,3)
+            except ValueError:
+                row[target_round] = np.nan
+        rows.append(row)
+
+    result = pd.DataFrame(rows).set_index("rule")
+    result.index.name = f"rule (vs {baseline})"
+    result.attrs["name"] = "wilcoxon_analysis"
+    result.attrs["experiment_ids"] = [r.experiment_id for r in runs]
+    return result
+
+
+def agg_wilcoxon_analysis_specific_round_loss(
+        runs,
+        baseline: str = "FedAVG",
+        rounds: list | None = None,
+        alternative: str = "less",  # Changed to "less" since we want lower loss than the baseline
+) -> pd.DataFrame:
+    """
+    Pairwise Wilcoxon signed-rank test comparing each aggregation rule against a baseline
+    at one or more specific rounds based on global model loss.
+
+    Args:
+        runs:        List of RunData objects. Each must have metadata key 'aggregation_rule'
+                     and a rounds_global DataFrame with 'round' and 'objective_global_loss'.
+        baseline:    The aggregation rule to compare against (default: "FedAVG").
+        rounds:      Rounds to test at. If None, uses all rounds present in the data.
+        alternative: "less"      — test if other < baseline (default for loss)
+                     "greater"   — test if other > baseline
+                     "two-sided" — test if other != baseline
+
+    Returns:
+        DataFrame with rules as index, rounds as columns, p-values as floats.
+    """
+    records = []
+    for r in runs:
+        rule = r.metadata.get("aggregation_rule")
+        for row in r.rounds_global.itertuples():
+            records.append({
+                "rule": rule,
+                "round": row.round,
+                # Fetching loss instead of accuracy
+                "loss": row.objective_global_loss,
+            })
+
+    df = pd.DataFrame(records)
+
+    if rounds is None:
+        rounds = sorted(df["round"].unique())
+
+    all_rules = [r for r in df["rule"].unique() if r != baseline]
+    baseline_data = df[df["rule"] == baseline]
+
+    rows = []
+    for rule in all_rules:
+        row = {"rule": rule}
+        for target_round in rounds:
+            # Filter on the 'loss' column
+            b_vals = baseline_data[baseline_data["round"] == target_round]["loss"].values
+            o_vals = df[(df["rule"] == rule) & (df["round"] == target_round)]["loss"].values
+
+            if len(b_vals) == 0 or len(o_vals) == 0:
+                row[target_round] = np.nan
+                continue
+            n = min(len(b_vals), len(o_vals))
+            try:
+                _, p = _wilcoxon(o_vals[:n], b_vals[:n], alternative=alternative)
+                row[target_round] = round(p,3)
+            except ValueError:
+                row[target_round] = np.nan
+        rows.append(row)
+
+    result = pd.DataFrame(rows).set_index("rule")
+    result.index.name = f"rule (vs {baseline})"
+    result.attrs["name"] = "wilcoxon_analysis_loss"
+    result.attrs["experiment_ids"] = [r.experiment_id for r in runs]
+    return result
+
+
+def agg_wilcoxon_analysis_acc(
+        runs,
+        baseline: str = "FedAVG",
+        rounds: list | None = None,
+        alternative: str = "greater",
+) -> pd.DataFrame:
+    """
+    Checks whether strategies are statistically better in ALL rounds up to the given milestones.
+    Returns the worst (highest) p-value found across the time intervals.
+    """
+    if rounds is None:
+        rounds = [10, 25, 50]  # Default checkpoints if none specified
+
+    records = []
+    for r in runs:
+        rule = r.metadata.get("aggregation_rule")
+        for row in r.rounds_global.itertuples():
+            records.append({
+                "rule": rule,
+                "round": row.round,
+                "accuracy": row.objective_global_accuracy,
+            })
+
+    df = pd.DataFrame(records)
+    all_rules = [r for r in df["rule"].unique() if r != baseline]
+    baseline_data = df[df["rule"] == baseline]
+
+    rows = []
+    for rule in all_rules:
+        row = {"rule": rule}
+
+        # Iterate over each milestone (e.g. 10, 25, 50)
+        for milestone_round in rounds:
+            worst_p = 0.0
+
+            # Generate all rounds from 1 up to and including the milestone
+            all_rounds_up_to_milestone = list(range(1, milestone_round + 1))
+
+            for target_round in all_rounds_up_to_milestone:
+                b_vals = baseline_data[baseline_data["round"] == target_round]["accuracy"].values
+                o_vals = df[(df["rule"] == rule) & (df["round"] == target_round)]["accuracy"].values
+
+                if len(b_vals) == 0 or len(o_vals) == 0:
+                    worst_p = np.nan
+                    break
+
+                n = min(len(b_vals), len(o_vals))
+                try:
+                    _, p = _wilcoxon(o_vals[:n], b_vals[:n], alternative=alternative)
+                    # Track the highest p-value found so far
+                    if p > worst_p:
+                        worst_p = p
+                except ValueError:
+                    worst_p = np.nan
+                    break
+
+            # Store the worst p-value for this milestone column
+            col_name = f"Rounds 1-{milestone_round}"
+            row[col_name] = round(worst_p, 4) if not np.isnan(worst_p) else np.nan
+
+        rows.append(row)
+
+    result = pd.DataFrame(rows).set_index("rule")
+    result.index.name = f"rule (vs {baseline})"
+    return result
+
+def agg_wilcoxon_analysis_loss(
+    runs,
+    baseline: str = "FedAVG",
+    rounds: list | None = None,
+    alternative: str = "less",  # Changed to "less" since we want lower loss than the baseline
+) -> pd.DataFrame:
+    """
+    Checks whether strategies have statistically lower LOSS in ALL rounds up to the given milestones.
+    Returns the worst (highest) p-value found across the time intervals.
+    """
+    if rounds is None:
+        rounds = [10, 25, 50]
+
+    records = []
+    for r in runs:
+        rule = r.metadata.get("aggregation_rule")
+        for row in r.rounds_global.itertuples():
+            records.append({
+                "rule": rule,
+                "round": row.round,
+                # Adjust 'objective_global_loss' if the field name differs in RunData
+                "loss": row.objective_global_loss,
+            })
+
+    df = pd.DataFrame(records)
+    all_rules = [r for r in df["rule"].unique() if r != baseline]
+    baseline_data = df[df["rule"] == baseline]
+
+    rows = []
+    for rule in all_rules:
+        row = {"rule": rule}
+
+        for milestone_round in rounds:
+            worst_p = 0.0
+            all_rounds_up_to_milestone = list(range(1, milestone_round + 1))
+
+            for target_round in all_rounds_up_to_milestone:
+                # Extract values based on 'loss' instead of 'accuracy'
+                b_vals = baseline_data[baseline_data["round"] == target_round]["loss"].values
+                o_vals = df[(df["rule"] == rule) & (df["round"] == target_round)]["loss"].values
+
+                if len(b_vals) == 0 or len(o_vals) == 0:
+                    worst_p = np.nan
+                    break
+
+                n = min(len(b_vals), len(o_vals))
+                try:
+                    _, p = _wilcoxon(o_vals[:n], b_vals[:n], alternative=alternative)
+                    # Still track the highest p-value (closest to non-significance)
+                    if p > worst_p:
+                        worst_p = p
+                except ValueError:
+                    worst_p = np.nan
+                    break
+
+            col_name = f"Rounds 1-{milestone_round}"
+            row[col_name] = round(worst_p, 4) if not np.isnan(worst_p) else np.nan
+
+        rows.append(row)
+
+    result = pd.DataFrame(rows).set_index("rule")
+    result.index.name = f"rule (vs {baseline})"
+    return result
 
