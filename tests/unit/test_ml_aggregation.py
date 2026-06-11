@@ -25,13 +25,13 @@ def mock_user(address, last_globalrep):
 
 class TestPositivesOnly:
     @pytest.mark.parametrize("scores_input, expected", [
-        ({"a": 2.0, "b": 2.0, "c": 4.0}, {"a": 0.25, "b": 0.25, "c": 0.5}), # Alle positive — normaliseres til sum = 1
-        ({"a": 5.0, "b": -1.0, "c": 0.0}, {"a": 1.0, "b": 0.0, "c": 0.0}), # Én positiv — bliver 1.0
-        ({"a": 3.0, "b": -1.0, "c": 1.0}, {"a": 0.75, "b": 0.0, "c": 0.25}), # Blandede — negative og nul bliver 0
-        ({"a": 2.0, "b": 2.0, "c": 2.0}, {"a": 1 / 3, "b": 1 / 3, "c": 1 / 3}), # Alle ens — ligeligt fordelt
+        ({"a": 2.0, "b": 2.0, "c": 4.0}, {"a": 0.25, "b": 0.25, "c": 0.5}), # All positive — normalized to sum = 1
+        ({"a": 5.0, "b": -1.0, "c": 0.0}, {"a": 1.0, "b": 0.0, "c": 0.0}), # One positive — becomes 1.0
+        ({"a": 3.0, "b": -1.0, "c": 1.0}, {"a": 0.75, "b": 0.0, "c": 0.25}), # Mixed — negatives and zero become 0
+        ({"a": 2.0, "b": 2.0, "c": 2.0}, {"a": 1 / 3, "b": 1 / 3, "c": 1 / 3}), # All equal — evenly distributed
         ({"a": 1.0, "b": 1.0, "c": -2.0}, {"a": 0.5, "b": 0.5, "c": 0.0}), # Sum = 0
-        ({"a": 0.5, "b": 0.3, "c": 0.2}, {"a": 0.5, "b": 0.3, "c": 0.2}), # Kommatal
-        ({"a": -1, "b": 1}, {"a": 0, "b":1}), # 1 negativ, 1 positiv}
+        ({"a": 0.5, "b": 0.3, "c": 0.2}, {"a": 0.5, "b": 0.3, "c": 0.2}), # Floats
+        ({"a": -1, "b": 1}, {"a": 0, "b":1}), # 1 negative, 1 positive
     ])
     def test_positives_only(self, scores_input, expected):
         result = positives_only(scores_input)
@@ -50,11 +50,11 @@ class TestPositivesOnly:
 
 class TestPlusOneNormalize:
     @pytest.mark.parametrize("scores_input, expected", [
-        ({"a": 2.0, "b": 2.0, "c": 4.0}, {"a": 3/11, "b": 3/11, "c": 5/11}), # Alle positive — shift +1, normaliser
-        ({"a": 1.0, "b": 1.0, "c": 1.0}, {"a": 1/3, "b": 1/3, "c": 1/3}), # Alle ens — ligeligt fordelt
-        ({"a": 0.0, "b": 0.0}, {"a": 0.5, "b": 0.5}), # Alle nul — ligeligt fordelt
-        ({"a": -1.0, "b": 3.0}, {"a": 0.0, "b": 1.0}), # Negativ score der bliver nul efter +1 — får vægt 0
-        ({"a": 0.5, "b": 0.3, "c": 0.2}, {"a": 1.5/4.0, "b": 1.3/4.0, "c": 1.2/4.0}), # Kommatal
+        ({"a": 2.0, "b": 2.0, "c": 4.0}, {"a": 3/11, "b": 3/11, "c": 5/11}), # All positive — shift +1, normalize
+        ({"a": 1.0, "b": 1.0, "c": 1.0}, {"a": 1/3, "b": 1/3, "c": 1/3}), # All equal — evenly distributed
+        ({"a": 0.0, "b": 0.0}, {"a": 0.5, "b": 0.5}), # All zero — evenly distributed
+        ({"a": -1.0, "b": 3.0}, {"a": 0.0, "b": 1.0}), # Negative score that becomes zero after +1 — gets weight 0
+        ({"a": 0.5, "b": 0.3, "c": 0.2}, {"a": 1.5/4.0, "b": 1.3/4.0, "c": 1.2/4.0}), # Floats
     ])
     def test_plus_one_normalize(self, scores_input, expected):
         result = plus_one_normalize(scores_input)
@@ -62,7 +62,7 @@ class TestPlusOneNormalize:
 
 
     @pytest.mark.parametrize("scores_input", [
-        {"a": -1.0, "b": -1.0},  # Alle scores = -1 → sum = 0 → ZeroDivisionError
+        {"a": -1.0, "b": -1.0},  # All scores = -1 → sum = 0 → ZeroDivisionError
     ])
     def test_plus_one_normalize_raises_on_zero_sum(self, scores_input):
         with pytest.raises(ZeroDivisionError):
@@ -71,11 +71,11 @@ class TestPlusOneNormalize:
 
 class TestPlusMoreThanOneNormalize:
     @pytest.mark.parametrize("scores_input, more_than_one, expected", [
-        ({"a": 2.0, "b": 2.0, "c": 4.0}, 1.1, {"a": 3.1/11.3, "b": 3.1/11.3, "c": 5.1/11.3}), # Default (1.1): alle positive — shift +1.1
-        ({"a": 1.0, "b": 1.0, "c": 1.0}, 1.1, {"a": 1/3, "b": 1/3, "c": 1/3}), # Default: alle ens — ligeligt fordelt
-        ({"a": -1.1, "b": 3.0}, 1.1, {"a": 0.0, "b": 1.0}), # Default: score der præcis omvender fortegn → vægt 0
-        ({"a": 0.5, "b": 0.3, "c": 0.2}, 1.1, {"a": 0.3721, "b": 0.3256, "c": 0.3023}), # Kommatal
-        ({"a": 1.0, "b": 3.0}, 2.0, {"a": 3/8, "b": 5/8}), # Brugerdefineret more_than_one=2.0 (TEST)
+        ({"a": 2.0, "b": 2.0, "c": 4.0}, 1.1, {"a": 3.1/11.3, "b": 3.1/11.3, "c": 5.1/11.3}), # Default (1.1): all positive — shift +1.1
+        ({"a": 1.0, "b": 1.0, "c": 1.0}, 1.1, {"a": 1/3, "b": 1/3, "c": 1/3}), # Default: all equal — evenly distributed
+        ({"a": -1.1, "b": 3.0}, 1.1, {"a": 0.0, "b": 1.0}), # Default: score that exactly negates the sign → weight 0
+        ({"a": 0.5, "b": 0.3, "c": 0.2}, 1.1, {"a": 0.3721, "b": 0.3256, "c": 0.3023}), # Floats
+        ({"a": 1.0, "b": 3.0}, 2.0, {"a": 3/8, "b": 5/8}), # Custom more_than_one=2.0
     ])
     def test_plus_more_than_one_normalize(self, scores_input, more_than_one, expected):
         result = plus_more_than_one_normalize(scores_input, more_than_one)
@@ -94,10 +94,10 @@ class TestPlusMoreThanOneNormalize:
 
 class TestGRSAggregation:
     @pytest.mark.parametrize("user_data, expected", [
-        ([("a", 1.0), ("b", 3.0)], {"a": 0.25, "b": 0.75}), # Proportional fordeling
-        ([("a", 2.0), ("b", 2.0), ("c", 2.0)], {"a": 1/3, "b": 1/3, "c": 1/3}), # Alle ens — ligeligt fordelt
-        ([("a", 5.0)], {"a": 1.0}), # Én bruger — 100%
-        ([("a", 0.5), ("b", 1.5)], {"a": 0.25, "b": 0.75}), # Kommatal
+        ([("a", 1.0), ("b", 3.0)], {"a": 0.25, "b": 0.75}), # Proportional distribution
+        ([("a", 2.0), ("b", 2.0), ("c", 2.0)], {"a": 1/3, "b": 1/3, "c": 1/3}), # All equal — evenly distributed
+        ([("a", 5.0)], {"a": 1.0}), # Single user — 100%
+        ([("a", 0.5), ("b", 1.5)], {"a": 0.25, "b": 0.75}), # Floats
     ])
     def test_grs_aggregation(self, user_data, expected):
         users = [mock_user(addr, rep) for addr, rep in user_data]
@@ -114,58 +114,58 @@ SCORES = {"a": 2.0, "b": 2.0}
 
 class TestBinarySwitch:
     def test_uses_func_1_at_round_1(self):
-        # Round 1, hvor betingelsen current_round_no > 1 er falsk, dermed ingen switch-check
+        # Round 1: condition current_round_no > 1 is false, so no switch check
         result = binary_switch(mock_pytorch_model(), SCORES, func_1, func_2, None, _current_round_no=1)
         assert result == {"func": "one"}
 
     def test_uses_func_1_when_no_two_previous_model(self):
-        # two_previous_global_model er None, hvor betingelsen er falsk, dermed ingen switch-check
+        # two_previous_global_model is None, condition is false so no switch check
         result = binary_switch(mock_pytorch_model(has_two_previous=False), SCORES, func_1, func_2, None, _current_round_no=2)
         assert result == {"func": "one"}
 
     @patch("src.ml.aggregation.models_are_equal", return_value=False)
     def test_uses_func_1_when_models_not_equal(self, _):
-        # Modeller er ikke ens, og derfor ingen switch
+        # Models are not equal, so no switch
         result = binary_switch(mock_pytorch_model(has_two_previous=True), SCORES, func_1, func_2, None, _current_round_no=2)
         assert result
 
     @patch("src.ml.aggregation.models_are_equal", return_value=True)
     def test_switches_to_func_2_on_convergence(self, _):
-        # Konvergens detekteret, derfor bruges func_2 og sætter has_switched=True
+        # Convergence detected: func_2 is used and has_switched is set to True
         pm = mock_pytorch_model(has_two_previous=True)
         result = binary_switch(pm, SCORES, func_1, func_2, None, _current_round_no=2)
         assert result == {"func": "two"}
         assert pm.has_switched is True
 
     def test_uses_func_2_when_already_switched(self):
-        # has_switched=True, dermed bruges func_2 direkte uden at tjekke modeller
+        # has_switched=True, so func_2 is used directly without checking models
         result = binary_switch(mock_pytorch_model(has_switched=True), SCORES, func_1, func_2, None, _current_round_no=1)
         assert result == {"func": "two"}
 
     def test_collector_updated_before_switch(self):
-        # Før switch: func_1 har vægt 1.0, func_2 har vægt 0.0
+        # Before switch: func_1 has weight 1.0, func_2 has weight 0.0
         collector = {}
         binary_switch(mock_pytorch_model(), SCORES, func_1, func_2, collector, _current_round_no=1)
         assert collector == {"func_1": "func_1", "weight_1": 1.0, "func_2": "func_2", "weight_2": 0.0}
 
     @patch("src.ml.aggregation.models_are_equal", return_value=True)
     def test_collector_updated_after_switch(self, _):
-        # Efter switch: func_1 har vægt 0.0, func_2 har vægt 1.0
+        # After switch: func_1 has weight 0.0, func_2 has weight 1.0
         collector = {}
         binary_switch(mock_pytorch_model(has_two_previous=True), SCORES, func_1, func_2, collector, _current_round_no=2)
         assert collector == {"func_1": "func_1", "weight_1": 0.0, "func_2": "func_2", "weight_2": 1.0}
 
     def test_collector_none_does_not_raise(self):
-        # collector=None, som betyder ingen fejl
+        # collector=None, so no error is raised
         binary_switch(mock_pytorch_model(), SCORES, func_1, func_2, None, _current_round_no=1)
 
 
 class TestPartialSwitchFixedLoss:
     @pytest.mark.parametrize("avg_prior_losses, threshold, expected", [
-        (None,  100, {"a": 1.0, "b": 0.0}),  # None → alpha=1.0, derfor kun func_1
-        (200.0, 100, {"a": 1.0, "b": 0.0}),  # loss > threshold, derfor alpha=1.0, og kun func_1
-        (100.0, 100, {"a": 1.0, "b": 0.0}),  # loss == threshold, derfor alpha=1.0, og kun func_1
-        (0.0,   100, {"a": 0.0, "b": 1.0}),  # loss=0, derfor alpha=sin(0°)=0, og kun func_2
+        (None,  100, {"a": 1.0, "b": 0.0}),  # None → alpha=1.0, so only func_1
+        (200.0, 100, {"a": 1.0, "b": 0.0}),  # loss > threshold, so alpha=1.0 and only func_1
+        (100.0, 100, {"a": 1.0, "b": 0.0}),  # loss == threshold, so alpha=1.0 and only func_1
+        (0.0,   100, {"a": 0.0, "b": 1.0}),  # loss=0, so alpha=sin(0°)=0 and only func_2
     ])
     def test_boundary_cases(self, avg_prior_losses, threshold, expected):
         result = partial_switch_fixed_loss(SCORES, avg_prior_losses, func_all_to_a, func_all_to_b, threshold)
@@ -186,7 +186,7 @@ class TestPartialSwitchFixedLoss:
         assert sum(result.values()) == pytest.approx(1.0)
 
     def test_fallback_uniform_when_total_is_zero(self):
-        # Begge funcs returnerer 0, betydende total=0, derfor ensartet fordeling
+        # Both funcs return 0, so total=0 and weights are distributed evenly
         def func_zero(scores): return {k: 0.0 for k in scores}
         result = partial_switch_fixed_loss(SCORES, 50.0, func_zero, func_zero)
         assert result == pytest.approx({"a": 0.5, "b": 0.5})
@@ -212,11 +212,11 @@ class TestPartialSwitchFixedLoss:
 
 class TestPartialSwitchLossRetrospective:
     @pytest.mark.parametrize("avg_prior_losses, expected", [
-        ([5.0],       {"a": 1.0, "b": 0.0}),  # Kun 1 loss, improvement_ratio=1.0, defor kun func_1
-        ([4.0, 4.0],  {"a": 0.0, "b": 1.0}),  # Ens værdier, men med forskellige output
-        ([5.0, 3.0],  {"a": 0.0, "b": 1.0}),  # Forværring, med ratio=0, derfor kun func_2
-        ([0.0, 10.0], {"a": 1.0, "b": 0.0}),  # Hurtig forbedring, hvor ratio fastsat til 1, derfor kun func_1
-        ([0.0, 0.0],  {"a": 1.0, "b": 0.0}),  # mean_loss=0 med ratio=1.0, derfor kun func_1
+        ([5.0],       {"a": 1.0, "b": 0.0}),  # Only 1 loss, improvement_ratio=1.0, so only func_1
+        ([4.0, 4.0],  {"a": 0.0, "b": 1.0}),  # Equal values but different output
+        ([5.0, 3.0],  {"a": 0.0, "b": 1.0}),  # Deterioration, ratio=0, so only func_2
+        ([0.0, 10.0], {"a": 1.0, "b": 0.0}),  # Fast improvement, ratio clamped to 1, so only func_1
+        ([0.0, 0.0],  {"a": 1.0, "b": 0.0}),  # mean_loss=0 with ratio=1.0, so only func_1
     ])
     def test_boundary_cases(self, avg_prior_losses, expected):
         result = partial_switch_loss_retrospective(SCORES, avg_prior_losses, func_all_to_a, func_all_to_b)

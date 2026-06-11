@@ -35,7 +35,7 @@ RESULTDATAFOLDER = REPO_ROOT / "data" / "runs" / "experiments"
 
 # ---------------- PRESET SEARCH SPACE ----------------
 
-preset = "comp_agg_cifar"
+preset = "full_system_mnist"
 _use_defaults = False
 datasets = [ DATASETSLOW ]
 

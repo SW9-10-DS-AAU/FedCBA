@@ -115,7 +115,6 @@ def _freerider_submit_with_noise(pm, user):
 
     if pm.freerider_noise_scale == 0:  # Copy global model if noise is zero
         print(yellow("Address {} resubmitting original model".format(user.address[0:16] + "...")))
-        # Changed from deepcopy(user.model).state_dict(): only tensor copies are required for the submission payload.
         return OrderedDict((k, v.clone()) for k, v in user.model.state_dict().items())
 
     print(red(
@@ -124,7 +123,6 @@ def _freerider_submit_with_noise(pm, user):
             pm.freerider_noise_scale,
         )
     ))
-    # Changed from manipulate(deepcopy(user.model), ...): manipulate() already clones each tensor internally.
     return manipulate(user.model, scale=pm.freerider_noise_scale)
 
 
@@ -145,7 +143,6 @@ def byzantine_attack(pm, user):
 
     crafted_weights = OrderedDict()
     with torch.no_grad():
-        # Changed from pm.previous_global_model.state_dict(): previous_global_model is now already a state_dict snapshot.
         prev_weights = pm.previous_global_model
         current_weights = pm.global_model.state_dict()
 
@@ -177,7 +174,6 @@ def delta_weight_attack(pm, user):
 
     crafted_weights = OrderedDict()
     with torch.no_grad():
-        # Changed from pm.previous_global_model.state_dict(): previous_global_model is now already a state_dict snapshot.
         prev_weights = pm.previous_global_model
         current_weights = pm.global_model.state_dict()
 
