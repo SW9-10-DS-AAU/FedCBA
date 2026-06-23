@@ -27,12 +27,17 @@ from ml.execution import (
 from ml.runtime import DEVICE, PIN_MEMORY
 from ml.participant import Participant
 
+import data.seeds as seeds
+
 debugging = sys.gettrace() is not None
 
 
 class PytorchModel:
     def __init__(self, DATASET, _good_participants, _bad_participants, _freerider_participants, epochs, batchsize, default_collateral, max_collateral, freerider_noise_scale: float = 1.0, freerider_start_round: int = 3, malicious_start_round: int = 3, malicious_noise_scale: float = 1.0,force_merge_all: bool = False, use_nobody_is_kicked: bool = False, data_distribution : str = None, dirichlet_alpha: float = None, malicious_attack_type: str = "noise", freerider_attack_type: str = "noise", run_id: int = None):
         self.DATASET = DATASET
+
+        self.run_id = 0 if run_id is None else run_id
+        torch.manual_seed(seeds.seeds[str(self.run_id)])
         if self.DATASET == "mnist":
             self.global_model = Net_MNIST().to(DEVICE)
         else:
@@ -53,7 +58,6 @@ class PytorchModel:
         self.disqualified = []
         self.EPOCHS = epochs
         self.BATCHSIZE = batchsize
-        self.run_id = 0 if run_id is None else run_id
 
         if data_distribution is None:
             self.data_distribution = "random_split"
