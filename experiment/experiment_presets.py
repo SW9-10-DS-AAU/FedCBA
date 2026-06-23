@@ -507,9 +507,9 @@ PRESETS = {
     "p10_fedavg_vs_grs_freerider_mnist": FullPreset(
         fork=True,
         reward=int(0),
-        # ingen reward! alle får alligevel samme reward i hver runde, så det er nemmest deres grs bare forbliver 1.1 og 0.8.
-        standard_buy_in=int(0.8e18),  # dårlig brugers start-GRS
-        min_buy_in=int(0.8e18),  # dårlig brugers start-GRS
+        # No reward — all users get the same reward each round anyway, so it's simplest to leave their GRS at 1.1 and 0.8.
+        standard_buy_in=int(0.8e18),  # bad user's starting GRS
+        min_buy_in=int(0.8e18),  # bad user's starting GRS
         max_buy_in=int(1.1e18),  # god brugers start-GRS
         first_round_fee=50,
         punish_factor=3,
@@ -541,9 +541,9 @@ PRESETS = {
     "p10_fedavg_vs_grs_freerider_cifar": FullPreset(
         fork=True,
         reward=int(0),
-        # ingen reward! alle får alligevel samme reward i hver runde, så det er nemmest deres grs bare forbliver 1.1 og 0.8.
-        standard_buy_in=int(0.8e18),  # dårlig brugers start-GRS
-        min_buy_in=int(0.8e18),  # dårlig brugers start-GRS
+        # No reward — all users get the same reward each round anyway, so it's simplest to leave their GRS at 1.1 and 0.8.
+        standard_buy_in=int(0.8e18),  # bad user's starting GRS
+        min_buy_in=int(0.8e18),  # bad user's starting GRS
         max_buy_in=int(1.1e18),  # god brugers start-GRS
         first_round_fee=50,
         punish_factor=3,
@@ -575,9 +575,9 @@ PRESETS = {
     "p10_fedavg_vs_grs_malicious_mnist": FullPreset(
         fork=True,
         reward=int(0),
-        # ingen reward! alle får alligevel samme reward i hver runde, så det er nemmest deres grs bare forbliver 1.1 og 0.8.
-        standard_buy_in=int(0.8e18),  # dårlig brugers start-GRS
-        min_buy_in=int(0.8e18),  # dårlig brugers start-GRS
+        # No reward — all users get the same reward each round anyway, so it's simplest to leave their GRS at 1.1 and 0.8.
+        standard_buy_in=int(0.8e18),  # bad user's starting GRS
+        min_buy_in=int(0.8e18),  # bad user's starting GRS
         max_buy_in=int(1.1e18),  # god brugers start-GRS
         first_round_fee=50,
         punish_factor=3,
@@ -609,9 +609,9 @@ PRESETS = {
     "p10_fedavg_vs_grs_malicious_cifar": FullPreset(
         fork=True,
         reward=int(0),
-        # ingen reward! alle får alligevel samme reward i hver runde, så det er nemmest deres grs bare forbliver 1.1 og 0.8.
-        standard_buy_in=int(0.8e18),  # dårlig brugers start-GRS
-        min_buy_in=int(0.8e18),  # dårlig brugers start-GRS
+        # No reward — all users get the same reward each round anyway, so it's simplest to leave their GRS at 1.1 and 0.8.
+        standard_buy_in=int(0.8e18),  # bad user's starting GRS
+        min_buy_in=int(0.8e18),  # bad user's starting GRS
         max_buy_in=int(1.1e18),  # god brugers start-GRS
         first_round_fee=50,
         punish_factor=3,
@@ -640,7 +640,7 @@ PRESETS = {
         number_of_runs=10
     ),
 
-    "comp_agg_mnist": FullPreset( # tidligere filnavn: p10_MAIN_GRAPHS_comparing_aggregation_rules_mnist.
+    "comp_agg_mnist": FullPreset( # previously named: p10_MAIN_GRAPHS_comparing_aggregation_rules_mnist.
         # defaults
         fork=True,
         reward=int(1e18),
@@ -728,7 +728,7 @@ PRESETS = {
     ),
 
 
-    "full_system_mnist": FullPreset( # på spark: 27-05-26. Teams?  Grafer?
+    "full_system_mnist": FullPreset(
         # defaults
         fork=True,
         reward=int(1e18),
@@ -772,7 +772,7 @@ PRESETS = {
         number_of_runs=10,
     ),
 
-    "full_system_cifar": FullPreset(  # På spark: 28-05-06
+    "full_system_cifar": FullPreset(
         # defaults
         fork=True,
         reward=int(1e18),

@@ -699,6 +699,55 @@ def agg_merge_stats_by_behavior(users: pd.DataFrame) -> pd.DataFrame:
     return total
 
 
+def agg_eval_reward_diff_by_role(
+    evaluation_rewards: pd.DataFrame,
+    users: pd.DataFrame,
+    metadata: pd.DataFrame,
+    aggregation_rule: str = "FedAVG",
+) -> pd.DataFrame:
+    """
+    Two-stage aggregation of evaluation reward gain (rewarded − staked) by role and round,
+    filtered to a single aggregation strategy (default: FedAVG).
+
+    Stage 1: mean reward_diff per (experiment_id, role, round).
+    Stage 2: mean and std of those per-experiment means across runs.
+
+    Returns columns: role, round, reward_diff_mean, reward_diff_std, n.
+    """
+    _require_nonempty(evaluation_rewards, "evaluation_rewards")
+
+    fedavg_ids = set(metadata.loc[metadata["aggregation_rule"] == aggregation_rule, "experiment_id"])
+    rewards = evaluation_rewards[evaluation_rewards["experiment_id"].isin(fedavg_ids)].copy()
+    filtered_meta = metadata[metadata["experiment_id"].isin(fedavg_ids)]
+
+    _require_nonempty(rewards, f"evaluation_rewards filtered to {aggregation_rule}")
+    _require_consistent_activation(users[users["experiment_id"].isin(fedavg_ids)], filtered_meta)
+
+    user_roles = users[["experiment_id", "round", "user_id", "role"]].drop_duplicates()
+    rewards = rewards.merge(user_roles, on=["experiment_id", "round", "user_id"], how="left")
+    rewards["reward_diff"] = rewards["rewarded"] - rewards["staked"]
+
+    per_experiment = (
+        rewards
+        .groupby(["experiment_id", "role", "round"])
+        .agg(reward_diff=("reward_diff", "mean"))
+        .reset_index()
+    )
+    agg = (
+        per_experiment
+        .groupby(["role", "round"])
+        .agg(
+            reward_diff_mean=("reward_diff", "mean"),
+            reward_diff_std= ("reward_diff", "std"),
+            n=               ("reward_diff", "count"),
+        )
+        .reset_index()
+    )
+    agg.attrs["experiment_ids"] = list(rewards["experiment_id"].unique())
+    agg.attrs["activation_round"] = _get_activation_round(filtered_meta)
+    return agg
+
+
 def agg_wilcoxon_analysis_specific_round_acc(
     runs,
     baseline: str = "FedAVG",
@@ -774,7 +823,7 @@ def agg_wilcoxon_analysis_specific_round_loss(
         runs,
         baseline: str = "FedAVG",
         rounds: list | None = None,
-        alternative: str = "less",  # Ændret til "less", da vi ønsker LAVERE loss end baselinen
+        alternative: str = "less",  # Changed to "less" since we want lower loss than the baseline
 ) -> pd.DataFrame:
     """
     Pairwise Wilcoxon signed-rank test comparing each aggregation rule against a baseline
@@ -799,7 +848,7 @@ def agg_wilcoxon_analysis_specific_round_loss(
             records.append({
                 "rule": rule,
                 "round": row.round,
-                # Henter loss i stedet for accuracy (tjek navnet 'objective_global_loss' i dine data)
+                # Fetching loss instead of accuracy
                 "loss": row.objective_global_loss,
             })
 
@@ -815,7 +864,7 @@ def agg_wilcoxon_analysis_specific_round_loss(
     for rule in all_rules:
         row = {"rule": rule}
         for target_round in rounds:
-            # Filtrerer på 'loss' kolonnen
+            # Filter on the 'loss' column
             b_vals = baseline_data[baseline_data["round"] == target_round]["loss"].values
             o_vals = df[(df["rule"] == rule) & (df["round"] == target_round)]["loss"].values
 
@@ -844,11 +893,11 @@ def agg_wilcoxon_analysis_acc(
         alternative: str = "greater",
 ) -> pd.DataFrame:
     """
-    Tjekker om strategierne er statistisk bedre i SAMTLIGE runder op til de angivne milepæle.
-    Returnerer den dårligste (højeste) p-værdi fundet i tidsintervallerne.
+    Checks whether strategies are statistically better in ALL rounds up to the given milestones.
+    Returns the worst (highest) p-value found across the time intervals.
     """
     if rounds is None:
-        rounds = [10, 25, 50]  # Standard checkpoints hvis intet er angivet
+        rounds = [10, 25, 50]  # Default checkpoints if none specified
 
     records = []
     for r in runs:
@@ -868,11 +917,11 @@ def agg_wilcoxon_analysis_acc(
     for rule in all_rules:
         row = {"rule": rule}
 
-        # Loop igennem hver milepæl (f.eks. 10, 25, 50)
+        # Iterate over each milestone (e.g. 10, 25, 50)
         for milestone_round in rounds:
             worst_p = 0.0
 
-            # Generer alle runder fra 1 op til og med milepælen
+            # Generate all rounds from 1 up to and including the milestone
             all_rounds_up_to_milestone = list(range(1, milestone_round + 1))
 
             for target_round in all_rounds_up_to_milestone:
@@ -886,14 +935,14 @@ def agg_wilcoxon_analysis_acc(
                 n = min(len(b_vals), len(o_vals))
                 try:
                     _, p = _wilcoxon(o_vals[:n], b_vals[:n], alternative=alternative)
-                    # Vi gemmer den HØJESTE p-værdi fundet i hele forløbet indtil nu
+                    # Track the highest p-value found so far
                     if p > worst_p:
                         worst_p = p
                 except ValueError:
                     worst_p = np.nan
                     break
 
-            # Gem den dårligste p-værdi for denne specifikke milepæl-kolonne
+            # Store the worst p-value for this milestone column
             col_name = f"Rounds 1-{milestone_round}"
             row[col_name] = round(worst_p, 4) if not np.isnan(worst_p) else np.nan
 
@@ -907,11 +956,11 @@ def agg_wilcoxon_analysis_loss(
     runs,
     baseline: str = "FedAVG",
     rounds: list | None = None,
-    alternative: str = "less",  # Ændret til "less", da vi ønsker LAVERE loss end baselinen
+    alternative: str = "less",  # Changed to "less" since we want lower loss than the baseline
 ) -> pd.DataFrame:
     """
-    Tjekker om strategierne har et statistisk lavere LOSS i SAMTLIGE runder op til de angivne milepæle.
-    Returnerer den dårligste (højeste) p-værdi fundet i tidsintervallerne.
+    Checks whether strategies have statistically lower LOSS in ALL rounds up to the given milestones.
+    Returns the worst (highest) p-value found across the time intervals.
     """
     if rounds is None:
         rounds = [10, 25, 50]
@@ -923,7 +972,7 @@ def agg_wilcoxon_analysis_loss(
             records.append({
                 "rule": rule,
                 "round": row.round,
-                # Ændr eventuelt navnet 'objective_global_loss' til det præcise navn i dine RunData objekter
+                # Adjust 'objective_global_loss' if the field name differs in RunData
                 "loss": row.objective_global_loss,
             })
 
@@ -940,7 +989,7 @@ def agg_wilcoxon_analysis_loss(
             all_rounds_up_to_milestone = list(range(1, milestone_round + 1))
 
             for target_round in all_rounds_up_to_milestone:
-                # Trækker tabeller ud baseret på 'loss' i stedet for 'accuracy'
+                # Extract values based on 'loss' instead of 'accuracy'
                 b_vals = baseline_data[baseline_data["round"] == target_round]["loss"].values
                 o_vals = df[(df["rule"] == rule) & (df["round"] == target_round)]["loss"].values
 
@@ -951,7 +1000,7 @@ def agg_wilcoxon_analysis_loss(
                 n = min(len(b_vals), len(o_vals))
                 try:
                     _, p = _wilcoxon(o_vals[:n], b_vals[:n], alternative=alternative)
-                    # Vi gemmer stadig den HØJESTE p-værdi (den tættest på ikke at være signifikant)
+                    # Still track the highest p-value (closest to non-significance)
                     if p > worst_p:
                         worst_p = p
                 except ValueError:

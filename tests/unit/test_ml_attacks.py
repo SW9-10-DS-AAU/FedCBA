@@ -36,7 +36,7 @@ def make_attitude_user(attitude, future_attitude, switch_round):
 class TestDeltaWeightAttack:
     @patch("src.ml.attacks.manipulate")
     def test_fallback_to_noise_when_no_previous_model(self, mock_manipulate):
-        # previous_global_model=None, og derfor kaldes manipulate() som fallback (noise)
+        # previous_global_model=None, so manipulate() is called as fallback (noise)
         pm = MagicMock()
         pm.previous_global_model = None
         pm.freerider_noise_scale = 0.05
@@ -47,36 +47,36 @@ class TestDeltaWeightAttack:
         mock_manipulate.assert_called_once_with(user.model, scale=0.05)
 
     def test_crafted_weights_equal_previous_global_model(self):
-        # crafted = value + (prev - value) = prev, dermed er resultatet forrige global model
-        prev = OrderedDict([("w", torch.tensor([1.0, 2.0]))]) # forrige global model
-        curr = OrderedDict([("w", torch.tensor([3.0, 4.0]))]) # nuværende global model
+        # crafted = value + (prev - value) = prev, so the result equals the previous global model
+        prev = OrderedDict([("w", torch.tensor([1.0, 2.0]))]) # previous global model
+        curr = OrderedDict([("w", torch.tensor([3.0, 4.0]))]) # current global model
         result = delta_weight_attack(mock_pytorch_model(prev, curr), MagicMock())
         assert torch.equal(result["w"], prev["w"])
 
     def test_integer_layers_cloned_without_modification(self):
-        # Ikke-float-tensorer klones direkte fra current model
-        prev = OrderedDict([("idx", torch.tensor([10, 20]))]) # forrige global model
-        curr = OrderedDict([("idx", torch.tensor([30, 40]))]) # nuværende global model
+        # Non-float tensors are cloned directly from the current model
+        prev = OrderedDict([("idx", torch.tensor([10, 20]))]) # previous global model
+        curr = OrderedDict([("idx", torch.tensor([30, 40]))]) # current global model
         result = delta_weight_attack(mock_pytorch_model(prev, curr), MagicMock())
         assert torch.equal(result["idx"], curr["idx"])
 
     def test_mixed_float_and_int_tensors(self):
-        prev = OrderedDict([("w", torch.tensor([1.0])), ("idx", torch.tensor([10]))]) # forrige global model
-        curr = OrderedDict([("w", torch.tensor([5.0])), ("idx", torch.tensor([20]))]) # nuværende global model
+        prev = OrderedDict([("w", torch.tensor([1.0])), ("idx", torch.tensor([10]))]) # previous global model
+        curr = OrderedDict([("w", torch.tensor([5.0])), ("idx", torch.tensor([20]))]) # current global model
         result = delta_weight_attack(mock_pytorch_model(prev, curr), MagicMock())
         assert torch.equal(result["w"],   prev["w"])
         assert torch.equal(result["idx"], curr["idx"])
 
     def test_returns_ordered_dict(self):
-        prev = OrderedDict([("w", torch.tensor([1.0]))]) # forrige global model
-        curr = OrderedDict([("w", torch.tensor([2.0]))]) # nuværende global model
+        prev = OrderedDict([("w", torch.tensor([1.0]))]) # previous global model
+        curr = OrderedDict([("w", torch.tensor([2.0]))]) # current global model
         result = delta_weight_attack(mock_pytorch_model(prev, curr), MagicMock())
         assert isinstance(result, OrderedDict)
 
     def test_does_not_modify_original_weights(self):
-        # Sikrer at ingen ændringer af prev/curr model sker
-        prev = OrderedDict([("w", torch.tensor([1.0, 2.0]))]) # forrige global model
-        curr = OrderedDict([("w", torch.tensor([3.0, 4.0]))]) # nuværende global model
+        # Ensures no modifications to prev/curr model occur
+        prev = OrderedDict([("w", torch.tensor([1.0, 2.0]))]) # previous global model
+        curr = OrderedDict([("w", torch.tensor([3.0, 4.0]))]) # current global model
         prev_snapshot = prev["w"].clone()
         curr_snapshot = curr["w"].clone()
         delta_weight_attack(mock_pytorch_model(prev, curr), MagicMock())
@@ -96,47 +96,47 @@ class TestByzantineAttack:
 
     def test_scale_1_reverses_to_previous_weights(self):
         # curr - 1*(curr - prev) = prev
-        prev = OrderedDict([("w", torch.tensor([1.0, 2.0]))]) # forrige global model
-        curr = OrderedDict([("w", torch.tensor([3.0, 4.0]))]) # nuværende global model
+        prev = OrderedDict([("w", torch.tensor([1.0, 2.0]))]) # previous global model
+        curr = OrderedDict([("w", torch.tensor([3.0, 4.0]))]) # current global model
         result = byzantine_attack(mock_byzantine_pytorch_model(prev, curr, malicious_scale=1.0), MagicMock())
         assert torch.allclose(result["w"], prev["w"])
 
     def test_scale_0_leaves_current_weights_unchanged(self):
-        # curr - 0*(curr - prev) = curr (ingen angreb)
-        prev = OrderedDict([("w", torch.tensor([1.0, 2.0]))]) # forrige global model
-        curr = OrderedDict([("w", torch.tensor([3.0, 4.0]))]) # nuværende global model
+        # curr - 0*(curr - prev) = curr (no attack)
+        prev = OrderedDict([("w", torch.tensor([1.0, 2.0]))]) # previous global model
+        curr = OrderedDict([("w", torch.tensor([3.0, 4.0]))]) # current global model
         result = byzantine_attack(mock_byzantine_pytorch_model(prev, curr, malicious_scale=0.0), MagicMock())
         assert torch.allclose(result["w"], curr["w"])
 
     def test_scale_2_overshoots_past_previous(self):
         # curr - 2*(curr - prev) = 2*prev - curr
-        prev = OrderedDict([("w", torch.tensor([1.0]))]) # forrige global model
-        curr = OrderedDict([("w", torch.tensor([3.0]))]) # nuværende global model
+        prev = OrderedDict([("w", torch.tensor([1.0]))]) # previous global model
+        curr = OrderedDict([("w", torch.tensor([3.0]))]) # current global model
         result = byzantine_attack(mock_byzantine_pytorch_model(prev, curr, malicious_scale=2.0), MagicMock())
         assert torch.allclose(result["w"], torch.tensor([-1.0]))
 
     def test_int_tensors_equal_current_weights(self):
-        prev = OrderedDict([("idx", torch.tensor([10, 20]))]) # forrige global model
-        curr = OrderedDict([("idx", torch.tensor([30, 40]))]) # nuværende global model
+        prev = OrderedDict([("idx", torch.tensor([10, 20]))]) # previous global model
+        curr = OrderedDict([("idx", torch.tensor([30, 40]))]) # current global model
         result = byzantine_attack(mock_byzantine_pytorch_model(prev, curr), MagicMock())
         assert torch.equal(result["idx"], curr["idx"])
 
     def test_mixed_float_and_int_tensors(self):
-        prev = OrderedDict([("w", torch.tensor([1.0])), ("idx", torch.tensor([10]))]) # forrige global model
-        curr = OrderedDict([("w", torch.tensor([3.0])), ("idx", torch.tensor([20]))]) # nuværende global model
+        prev = OrderedDict([("w", torch.tensor([1.0])), ("idx", torch.tensor([10]))]) # previous global model
+        curr = OrderedDict([("w", torch.tensor([3.0])), ("idx", torch.tensor([20]))]) # current global model
         result = byzantine_attack(mock_byzantine_pytorch_model(prev, curr, malicious_scale=1.0), MagicMock())
         assert torch.allclose(result["w"],   prev["w"])
         assert torch.equal(result["idx"],    curr["idx"])
 
     def test_returns_ordered_dict(self):
-        prev = OrderedDict([("w", torch.tensor([1.0]))]) # forrige global model
-        curr = OrderedDict([("w", torch.tensor([2.0]))]) # nuværende global model
+        prev = OrderedDict([("w", torch.tensor([1.0]))]) # previous global model
+        curr = OrderedDict([("w", torch.tensor([2.0]))]) # current global model
         result = byzantine_attack(mock_byzantine_pytorch_model(prev, curr), MagicMock())
         assert isinstance(result, OrderedDict)
 
     def test_does_not_modify_original_weights(self):
-        prev = OrderedDict([("w", torch.tensor([1.0, 2.0]))]) # forrige global model
-        curr = OrderedDict([("w", torch.tensor([3.0, 4.0]))]) # nuværende global model
+        prev = OrderedDict([("w", torch.tensor([1.0, 2.0]))]) # previous global model
+        curr = OrderedDict([("w", torch.tensor([3.0, 4.0]))]) # current global model
         prev_snapshot = prev["w"].clone()
         curr_snapshot = curr["w"].clone()
         byzantine_attack(mock_byzantine_pytorch_model(prev, curr), MagicMock())
@@ -146,7 +146,7 @@ class TestByzantineAttack:
 
 class TestManipulate:
     def test_float_noise_within_scale_bounds(self):
-        # Noise er inden for [-scale, scale] for float-tensorer
+        # Noise is within [-scale, scale] for float tensors
         scale = 0.5
         original = torch.tensor([0.0, 0.0, 0.0])
         result = manipulate(make_model(OrderedDict([("w", original)])), scale=scale)
@@ -154,7 +154,7 @@ class TestManipulate:
         assert (diff >= -scale).all() and (diff <= scale).all()
 
     def test_scale_zero_leaves_float_unchanged(self):
-        # uniform(-0, 0) = 0, dermed ingen ændring
+        # uniform(-0, 0) = 0, so no change
         original = torch.tensor([1.0, 2.0])
         result = manipulate(make_model(OrderedDict([("w", original)])), scale=0.0)
         assert torch.equal(result["w"], original)
@@ -177,7 +177,7 @@ class TestManipulate:
 
 class TestAddNoise:
     def test_only_target_tensor_modified(self):
-        # 3 items, offset_from_end=1 og target_idx=2, dermed kun "c" ændres
+        # 3 items, offset_from_end=1 and target_idx=2, so only "c" is modified
         sd = OrderedDict([("a", torch.tensor([1.0])), ("b", torch.tensor([2.0])), ("c", torch.tensor([3.0]))])
         result = add_noise(make_model(sd), offset_from_end=1)
         assert torch.equal(result["a"], sd["a"])
@@ -185,14 +185,14 @@ class TestAddNoise:
         assert not torch.equal(result["c"], sd["c"])
 
     def test_large_offset_to_first_tensor(self):
-        # max(0, 2-10) = 0, derfor target_idx=0, og "a" ændres, "b" uændret
+        # max(0, 2-10) = 0, so target_idx=0 and "a" is modified, "b" unchanged
         sd = OrderedDict([("a", torch.tensor([1.0])), ("b", torch.tensor([2.0]))])
         result = add_noise(make_model(sd), offset_from_end=10)
         assert not torch.equal(result["a"], sd["a"])
         assert torch.equal(result["b"], sd["b"])
 
     def test_non_float_at_target_not_modified(self):
-        # target_idx=1 er int-tensor, hvilket betyder betingelsen is_floating_point() er falsk, dermed ingen noise
+        # target_idx=1 is an int tensor, so is_floating_point() is false and no noise is applied
         sd = OrderedDict([("a", torch.tensor([1.0])), ("b", torch.tensor([10]))])
         result = add_noise(make_model(sd), offset_from_end=1)
         assert torch.equal(result["b"], sd["b"])
@@ -276,7 +276,7 @@ class TestUpdateUsersAttitude:
         assert user.attitude == "good"
 
     def test_does_not_switch_when_already_target_attitude(self):
-        # attitude == futureAttitude, dermed betingelsen attitude != futureAttitude er falsk
+        # attitude == futureAttitude, so the condition attitude != futureAttitude is false
         user = make_attitude_user("bad", "bad", switch_round=3)
         pm = MagicMock()
         pm.round = 3

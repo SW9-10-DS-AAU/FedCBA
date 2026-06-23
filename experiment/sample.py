@@ -23,7 +23,7 @@ from analysis import ExperimentLogger
 
 DATA_ROOT = REPO_ROOT / "data"
 
-preset = "p10_MAIN_GRAPHS_comparing_aggregation_rules_mnist"
+preset = "full_system_mnist"
 _use_defaults = False
 
 

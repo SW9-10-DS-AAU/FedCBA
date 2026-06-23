@@ -20,7 +20,7 @@ plt.style.use(["science", "high-vis"])
 matplotlib.rcParams.update({
     "figure.dpi": 300,
     "pgf.rcfonts": False,
-    # "text.usetex": False,
+    # "text.usetex": False, # Disable this if you do not have local latex installed. Uses latex for rendering fonts.
 })
 figure_file_extensions = ["pgf", "svg", "png", "pdf"]
 figure_file_extension = figure_file_extensions[3]
@@ -136,11 +136,9 @@ def _x_tick_interval(max_round: int) -> int:
     return 1
 
 
-def _inset_layout(max_round: int, y0: float) -> dict:
-    """Return bbox/size kwargs for _add_zoom_inset, scaled to the number of rounds."""
-    if max_round > 15:
-        return dict(bbox_to_anchor=(0.45, y0, 0.53, 0.95), width="45%", height="40%")
-    return dict(bbox_to_anchor=(0.25, y0, 0.73, 0.95), width="55%", height="40%")
+def _inset_layout(y0: float) -> dict:
+    """Return bbox/size kwargs for _add_zoom_inset."""
+    return dict(bbox_to_anchor=(0.45, y0, 0.53, 0.95), width="45%", height="40%")
 
 
 def _add_zoom_inset(
@@ -718,7 +716,7 @@ def plot_global_acc_by_aggregation_strategy(
     max_round = int(acc_by_strategy["round"].max())
     _add_zoom_inset(ax, acc_by_strategy,
                     x_range=(max_round - 2, max_round),
-                    **_inset_layout(max_round, y0=0.45),
+                    **_inset_layout(y0=0.40),
                     loc="lower right",
                     loc1=1, loc2=2,
                     y_col="accuracy_mean")
@@ -780,7 +778,7 @@ def plot_global_loss_by_aggregation_strategy(
     max_round = int(loss_by_strategy["round"].max())
     _add_zoom_inset(ax, loss_by_strategy,
                     x_range=(max_round - 2, max_round),
-                    **_inset_layout(max_round, y0=0.15),
+                    **_inset_layout(y0=0.20),
                     loc="lower right",
                     loc1=3, loc2=4,
                     y_col="loss_mean")
@@ -1094,6 +1092,86 @@ def delete_figure(directory: str | Path, graph_id: str) -> None:
             mappings_path.write_text("".join(kept))
         else:
             mappings_path.unlink()
+
+
+def plot_eval_reward_diff_by_role(
+    agg_rewards: pd.DataFrame,
+    error_band: str = "ci",
+) -> plt.Figure:
+    """
+    Grouped bar chart of mean evaluation reward gain (rewarded − staked) per role per round.
+    Bars are centered on zero; y-axis is clamped to the physical bounds [-1/3, +1/3] ETH.
+
+    Expects columns: role, round, reward_diff_mean, reward_diff_std, n.
+    """
+    fig, ax = plt.subplots(figsize=(9, 4), constrained_layout=True)
+
+    rounds = sorted(agg_rewards["round"].unique())
+    roles = [r for r in ROLE_ORDER if r in agg_rewards["role"].values]
+    n_roles = len(roles)
+    bar_width = 0.65 / n_roles
+    offsets = np.arange(n_roles) * bar_width - (n_roles - 1) * bar_width / 2
+
+    # Each round a user stakes staking_min_grs = min_collateral / punishfactorContrib = 1/3 ETH.
+    # The worst they can do is get back 0 (reward_diff = -1/3), and we cap the display at +1/3.
+    # Without this, the CI whiskers can overshoot the physical bounds — especially in later rounds
+    # where few experiments still have that role active, making the t-CI blow up from small n.
+    EVAL_REWARD_MIN = -1 / 3
+    EVAL_REWARD_MAX =  1 / 3
+
+    handles, labels = [], []
+    for i, role in enumerate(roles):
+        grp = agg_rewards[agg_rewards["role"] == role].sort_values("round")
+        color = BEHAVIOR_COLORS.get(role)
+        xpos = [r + offsets[i] for r in rounds if r in grp["round"].values]
+        grp = grp[grp["round"].isin(rounds)]
+        y = grp["reward_diff_mean"].values
+
+        yerr = None
+        if "reward_diff_std" in grp.columns:
+            b = _band(grp["reward_diff_std"], grp["n"] if "n" in grp.columns else None, error_band)
+            if b is not None:
+                half = b.values
+                # Don't let whiskers (lines) exceed physical bounds (reward_diff can't leave [-1/3, 1/3]).
+                # y - lower >= EVAL_REWARD_MIN  →  lower <= y - EVAL_REWARD_MIN
+                # y + upper <= EVAL_REWARD_MAX  →  upper <= EVAL_REWARD_MAX - y
+                lower = np.clip(half, 0, y - EVAL_REWARD_MIN)
+                upper = np.clip(half, 0, EVAL_REWARD_MAX - y)
+                yerr = np.array([lower, upper])
+
+        bars = ax.bar(xpos, y, width=bar_width, color=color, alpha=0.85,
+                      yerr=yerr, capsize=3, error_kw={"linewidth": 0.8})
+        handles.append(bars)
+        labels.append(ROLE_LABELS.get(role, role))
+
+    act = agg_rewards.attrs.get("activation_round")
+    if act is not None:
+        ax.axvspan(act - 1.5, act - 0.5, color=ACTIVATION_COLOR, alpha=0.2, zorder=0)
+        handles.append(Patch(facecolor=ACTIVATION_COLOR, alpha=0.4))
+        labels.append("Pre-Attack Round")
+
+    band_label = r"95\% CI" if error_band == "ci" else r"±std"
+    handles.append(Line2D([0], [0], color="black", linewidth=0, marker="|", markersize=10, markeredgewidth=1.5))
+    labels.append(band_label)
+
+    for r in rounds[:-1]:
+        ax.axvline(r + 0.5, color="gray", linewidth=0.5, alpha=0.4, zorder=0)
+
+    ax.axhline(0, color="black", linewidth=0.8)
+    ax.set_ylim(-0.35, 0.35)
+    ax.set_xlabel("Round")
+    ax.set_ylabel("Evaluation Voting Reward Gain")
+    ax.set_xlim(rounds[0] - 0.4, rounds[-1] + 0.4)
+    ax.set_xticks(rounds)
+    ax.set_xticklabels(rounds)
+    ax.legend(handles, labels, fontsize=8)
+    ax.grid(True, alpha=0.3, axis="y")
+    ax.set_axisbelow(True)
+
+    fig._plot_name = "eval_reward_diff_by_role"
+    fig._uuids = agg_rewards.attrs.get("experiment_ids", [])
+
+    return fig
 
 
 def save_figure(fig: plt.Figure, base_dir, experiment_name=None, suffix: str = "", dpi: int = 300):

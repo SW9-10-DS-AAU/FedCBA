@@ -68,7 +68,6 @@ exclude_lines = [
   "pragma: no cover",
   "pragma: openfl",   # legacy openfl code
   "pragma: p9",       # P9-era code
-  "pragma: p10",      # P10-era code (probably keep covered, but available)
   "pragma: unknown"   # Unknown origin
 ]
 
